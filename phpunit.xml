@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<phpunit
+    bootstrap="tests/php/bootstrap.php"
+    colors="true"
+    verbose="true"
+    stopOnFailure="false"
+>
+    <testsuites>
+        <testsuite name="Peanut Festival">
+            <directory suffix="Test.php">./tests/php</directory>
+        </testsuite>
+    </testsuites>
+    <coverage>
+        <include>
+            <directory suffix=".php">./includes</directory>
+        </include>
+        <exclude>
+            <file>./includes/class-activator.php</file>
+            <file>./includes/class-deactivator.php</file>
+        </exclude>
+    </coverage>
+</phpunit>

@@ -1,0 +1,1307 @@
+/**
+ * Peanut Festival - Public Styles
+ */
+
+/* CSS Variables */
+:root {
+    --pf-primary: #7c3aed;
+    --pf-primary-dark: #6d28d9;
+    --pf-primary-light: #a78bfa;
+    --pf-success: #10b981;
+    --pf-error: #ef4444;
+    --pf-warning: #f59e0b;
+    --pf-gray-50: #f9fafb;
+    --pf-gray-100: #f3f4f6;
+    --pf-gray-200: #e5e7eb;
+    --pf-gray-300: #d1d5db;
+    --pf-gray-500: #6b7280;
+    --pf-gray-700: #374151;
+    --pf-gray-900: #111827;
+    --pf-radius: 8px;
+    --pf-radius-lg: 12px;
+    --pf-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --pf-shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+}
+
+/* Accessibility - Screen Reader Only Text */
+.screen-reader-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Skip Link */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--pf-primary);
+    color: white;
+    padding: 8px;
+    z-index: 100000;
+}
+
+.skip-link:focus {
+    top: 0;
+}
+
+/* Focus Styles */
+:focus-visible {
+    outline: 2px solid var(--pf-primary);
+    outline-offset: 2px;
+}
+
+/* Base Elements */
+.pf-input, .pf-select, .pf-textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--pf-gray-300);
+    border-radius: var(--pf-radius);
+    font-size: 1rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.pf-input:focus, .pf-select:focus, .pf-textarea:focus {
+    outline: none;
+    border-color: var(--pf-primary);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.pf-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: var(--pf-radius);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.pf-btn-primary {
+    background: var(--pf-primary);
+    color: white;
+}
+
+.pf-btn-primary:hover {
+    background: var(--pf-primary-dark);
+}
+
+.pf-btn-primary:disabled {
+    background: var(--pf-gray-300);
+    cursor: not-allowed;
+}
+
+.pf-btn-secondary {
+    background: var(--pf-gray-100);
+    color: var(--pf-gray-700);
+}
+
+.pf-btn-secondary:hover {
+    background: var(--pf-gray-200);
+}
+
+.pf-btn-large {
+    padding: 1rem 2rem;
+    font-size: 1.125rem;
+}
+
+/* Spinner */
+.pf-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--pf-gray-200);
+    border-top-color: var(--pf-primary);
+    border-radius: 50%;
+    animation: pf-spin 0.8s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes pf-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Messages */
+.pf-error, .pf-notice, .pf-success {
+    padding: 1rem 1.5rem;
+    border-radius: var(--pf-radius);
+    margin-bottom: 1rem;
+}
+
+.pf-error {
+    background: #fef2f2;
+    color: var(--pf-error);
+    border: 1px solid #fecaca;
+}
+
+.pf-notice {
+    background: #fffbeb;
+    color: var(--pf-warning);
+    border: 1px solid #fed7aa;
+}
+
+.pf-success {
+    background: #ecfdf5;
+    color: var(--pf-success);
+    border: 1px solid #a7f3d0;
+}
+
+/* Badges */
+.pf-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    border-radius: 9999px;
+}
+
+.pf-badge-featured {
+    background: var(--pf-primary);
+    color: white;
+}
+
+.pf-badge-family {
+    background: var(--pf-success);
+    color: white;
+}
+
+/* ==================== VOTING WIDGET ==================== */
+
+.pf-voting-widget {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.pf-vote-loading {
+    text-align: center;
+    padding: 3rem;
+}
+
+.pf-vote-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.pf-vote-title {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: var(--pf-gray-900);
+}
+
+.pf-vote-group-name {
+    font-size: 1.25rem;
+    color: var(--pf-primary);
+    font-weight: 600;
+}
+
+.pf-vote-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: var(--pf-gray-900);
+    color: white;
+    border-radius: var(--pf-radius);
+    font-family: monospace;
+}
+
+.pf-timer-display {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.pf-vote-instructions {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: var(--pf-gray-500);
+}
+
+.pf-vote-hint {
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+}
+
+.pf-vote-message {
+    margin-bottom: 1rem;
+}
+
+.pf-performers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.pf-performer-card {
+    position: relative;
+    background: white;
+    border: 2px solid var(--pf-gray-200);
+    border-radius: var(--pf-radius-lg);
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.pf-performer-card:hover,
+.pf-performer-card:focus {
+    border-color: var(--pf-primary-light);
+    transform: translateY(-2px);
+    box-shadow: var(--pf-shadow-lg);
+}
+
+.pf-performer-card:focus {
+    outline: 2px solid var(--pf-primary);
+    outline-offset: 2px;
+}
+
+.pf-performer-card:focus:not(:focus-visible) {
+    outline: none;
+}
+
+.pf-performer-card.pf-selected {
+    border-color: var(--pf-primary);
+    background: rgba(124, 58, 237, 0.05);
+}
+
+.pf-performer-rank {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 32px;
+    height: 32px;
+    background: var(--pf-primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.875rem;
+}
+
+.pf-performer-photo {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 1rem;
+    background: var(--pf-gray-100);
+}
+
+.pf-performer-name {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--pf-gray-900);
+    margin-bottom: 0.5rem;
+}
+
+.pf-performer-bio {
+    font-size: 0.875rem;
+    color: var(--pf-gray-500);
+    line-height: 1.5;
+}
+
+.pf-vote-selections {
+    background: var(--pf-gray-50);
+    border-radius: var(--pf-radius);
+    padding: 1rem;
+    margin-bottom: 2rem;
+}
+
+.pf-vote-selections h4 {
+    margin: 0 0 0.5rem;
+    color: var(--pf-gray-700);
+}
+
+.pf-selections-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.pf-selection-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: white;
+    border: 1px solid var(--pf-gray-200);
+    border-radius: var(--pf-radius);
+}
+
+.pf-selection-rank {
+    font-weight: bold;
+    color: var(--pf-primary);
+}
+
+.pf-vote-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+/* ==================== SCHEDULE WIDGET ==================== */
+
+.pf-schedule-widget {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.pf-schedule-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: var(--pf-gray-50);
+    border-radius: var(--pf-radius);
+}
+
+.pf-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pf-filter-group label {
+    font-weight: 500;
+    color: var(--pf-gray-700);
+}
+
+.pf-filter-select {
+    width: auto;
+    min-width: 150px;
+}
+
+.pf-schedule-empty {
+    text-align: center;
+    padding: 3rem;
+    color: var(--pf-gray-500);
+}
+
+.pf-schedule-day {
+    margin-bottom: 2rem;
+}
+
+.pf-day-header {
+    font-size: 1.5rem;
+    color: var(--pf-gray-900);
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--pf-primary);
+    margin-bottom: 1rem;
+}
+
+.pf-shows-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.pf-schedule-grid .pf-shows-list {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.pf-show-card {
+    position: relative;
+    background: white;
+    border: 1px solid var(--pf-gray-200);
+    border-radius: var(--pf-radius-lg);
+    padding: 1.5rem;
+    transition: box-shadow 0.2s;
+}
+
+.pf-show-card:hover {
+    box-shadow: var(--pf-shadow-lg);
+}
+
+.pf-show-card.pf-featured {
+    border-color: var(--pf-primary);
+    border-width: 2px;
+}
+
+.pf-show-card.pf-sold-out {
+    opacity: 0.7;
+}
+
+.pf-show-card .pf-badge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+}
+
+.pf-show-time {
+    font-size: 0.875rem;
+    color: var(--pf-primary);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.pf-show-title {
+    font-size: 1.25rem;
+    color: var(--pf-gray-900);
+    margin: 0 0 0.5rem;
+}
+
+.pf-show-venue {
+    font-size: 0.875rem;
+    color: var(--pf-gray-500);
+    margin-bottom: 0.75rem;
+}
+
+.pf-venue-address {
+    font-size: 0.75rem;
+}
+
+.pf-show-description {
+    font-size: 0.875rem;
+    color: var(--pf-gray-700);
+    line-height: 1.6;
+    margin-bottom: 1rem;
+}
+
+.pf-show-status {
+    margin-top: auto;
+}
+
+.pf-status {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: var(--pf-radius);
+}
+
+.pf-status-on-sale {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.pf-status-sold-out {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* ==================== FLYER WIDGET ==================== */
+
+.pf-flyer-widget {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.pf-flyer-empty {
+    text-align: center;
+    padding: 3rem;
+    color: var(--pf-gray-500);
+}
+
+.pf-template-selector {
+    margin-bottom: 1.5rem;
+}
+
+.pf-template-selector label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.pf-flyer-container {
+    display: grid;
+    gap: 2rem;
+}
+
+@media (min-width: 768px) {
+    .pf-flyer-container {
+        grid-template-columns: 1fr 300px;
+    }
+}
+
+.pf-flyer-canvas-wrap {
+    background: var(--pf-gray-100);
+    border-radius: var(--pf-radius-lg);
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#pf-flyer-canvas {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--pf-radius);
+    box-shadow: var(--pf-shadow-lg);
+    cursor: grab;
+}
+
+#pf-flyer-canvas:active {
+    cursor: grabbing;
+}
+
+.pf-flyer-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.pf-control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.pf-control-group label {
+    font-weight: 500;
+    color: var(--pf-gray-700);
+}
+
+.pf-file-input {
+    display: none;
+}
+
+.pf-drag-hint {
+    font-size: 0.75rem;
+    color: var(--pf-gray-500);
+    text-align: center;
+}
+
+.pf-image-adjustments {
+    padding: 1rem;
+    background: var(--pf-gray-50);
+    border-radius: var(--pf-radius);
+}
+
+.pf-flyer-actions {
+    margin-top: auto;
+}
+
+/* ==================== FORMS ==================== */
+
+.pf-form-widget {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
+    border-radius: var(--pf-radius-lg);
+    box-shadow: var(--pf-shadow-lg);
+    overflow: hidden;
+}
+
+.pf-form-header {
+    background: linear-gradient(135deg, var(--pf-primary), var(--pf-primary-dark));
+    color: white;
+    padding: 2rem;
+    text-align: center;
+}
+
+.pf-form-header h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.75rem;
+}
+
+.pf-form-header p {
+    margin: 0;
+    opacity: 0.9;
+}
+
+.pf-form {
+    padding: 2rem;
+}
+
+.pf-form-message {
+    margin-bottom: 1.5rem;
+}
+
+.pf-form-section {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--pf-gray-200);
+}
+
+.pf-form-section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.pf-form-section h3 {
+    font-size: 1.125rem;
+    color: var(--pf-gray-900);
+    margin: 0 0 1rem;
+}
+
+.pf-section-desc {
+    color: var(--pf-gray-500);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+}
+
+.pf-form-row {
+    display: grid;
+    gap: 1rem;
+}
+
+@media (min-width: 640px) {
+    .pf-form-row {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.pf-form-group {
+    margin-bottom: 1rem;
+}
+
+.pf-form-group:last-child {
+    margin-bottom: 0;
+}
+
+.pf-form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--pf-gray-700);
+}
+
+.pf-required label::after {
+    content: ' *';
+    color: var(--pf-error);
+}
+
+.pf-checkbox-grid {
+    display: grid;
+    gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+    .pf-checkbox-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.pf-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.pf-checkbox-label input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--pf-primary);
+}
+
+.pf-checkbox-single {
+    margin-top: 0.5rem;
+}
+
+.pf-form-notice {
+    background: var(--pf-gray-50);
+    border-radius: var(--pf-radius);
+    padding: 1rem;
+}
+
+.pf-form-notice p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--pf-gray-700);
+}
+
+.pf-form-actions {
+    padding: 2rem;
+    background: var(--pf-gray-50);
+    text-align: center;
+}
+
+.pf-form-success {
+    padding: 4rem 2rem;
+    text-align: center;
+}
+
+.pf-success-icon {
+    width: 80px;
+    height: 80px;
+    background: var(--pf-success);
+    color: white;
+    font-size: 2.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+}
+
+.pf-form-success h3 {
+    font-size: 1.5rem;
+    color: var(--pf-gray-900);
+    margin: 0 0 0.5rem;
+}
+
+.pf-form-success p {
+    color: var(--pf-gray-500);
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Shift Selection */
+.pf-shift-day {
+    margin-bottom: 1.5rem;
+}
+
+.pf-shift-day h4 {
+    margin: 0 0 0.75rem;
+    color: var(--pf-gray-700);
+}
+
+.pf-shift-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.pf-shift-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: white;
+    border: 1px solid var(--pf-gray-200);
+    border-radius: var(--pf-radius);
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.pf-shift-option:hover {
+    border-color: var(--pf-primary-light);
+}
+
+.pf-shift-option.pf-shift-full {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.pf-shift-option input {
+    margin-top: 0.25rem;
+    accent-color: var(--pf-primary);
+}
+
+.pf-shift-info {
+    flex: 1;
+    font-size: 0.875rem;
+}
+
+.pf-shift-info strong {
+    display: block;
+    color: var(--pf-gray-900);
+}
+
+.pf-shift-time, .pf-shift-location, .pf-shift-slots {
+    display: block;
+    color: var(--pf-gray-500);
+}
+
+.pf-shift-slots {
+    color: var(--pf-success);
+    font-weight: 500;
+}
+
+.pf-shift-full .pf-shift-slots {
+    color: var(--pf-error);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .pf-voting-widget,
+    .pf-form {
+        padding: 1rem;
+    }
+
+    .pf-performers-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .pf-performer-photo {
+        width: 80px;
+        height: 80px;
+    }
+
+    .pf-vote-actions {
+        flex-direction: column;
+    }
+
+    .pf-vote-actions .pf-btn {
+        width: 100%;
+    }
+}
+
+/* ==================== CHECK-IN WIDGET ==================== */
+
+.pf-checkin-widget {
+    max-width: 600px;
+    margin: 0 auto;
+    background: white;
+    border-radius: var(--pf-radius-lg);
+    box-shadow: var(--pf-shadow-lg);
+    overflow: hidden;
+}
+
+.pf-checkin-header {
+    background: linear-gradient(135deg, var(--pf-primary), var(--pf-primary-dark));
+    color: white;
+    padding: 1.5rem 2rem;
+    text-align: center;
+}
+
+.pf-checkin-header h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.5rem;
+}
+
+.pf-checkin-header p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 0.875rem;
+}
+
+/* Tabs */
+.pf-checkin-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--pf-gray-200);
+}
+
+.pf-checkin-tab {
+    flex: 1;
+    padding: 1rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--pf-gray-500);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pf-checkin-tab:hover {
+    color: var(--pf-gray-700);
+    background: var(--pf-gray-50);
+}
+
+.pf-checkin-tab.pf-active {
+    color: var(--pf-primary);
+    border-bottom-color: var(--pf-primary);
+}
+
+/* Content Panels */
+.pf-checkin-content {
+    padding: 2rem;
+}
+
+.pf-checkin-panel {
+    display: none;
+}
+
+.pf-checkin-panel.pf-active {
+    display: block;
+}
+
+/* Scanner */
+.pf-scanner-container {
+    text-align: center;
+}
+
+.pf-scanner-viewport {
+    width: 100%;
+    max-width: 400px;
+    height: 300px;
+    margin: 0 auto 1rem;
+    background: var(--pf-gray-900);
+    border-radius: var(--pf-radius);
+    position: relative;
+    overflow: hidden;
+}
+
+.pf-scanner-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.pf-scanner-frame {
+    width: 200px;
+    height: 200px;
+    border: 2px solid var(--pf-primary);
+    border-radius: var(--pf-radius);
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+
+.pf-scanner-hint {
+    font-size: 0.875rem;
+    color: var(--pf-gray-500);
+    margin-top: 1rem;
+}
+
+/* Manual Entry Form */
+.pf-checkin-form {
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+.pf-input-large {
+    font-size: 1.5rem;
+    text-align: center;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+/* Result Display */
+.pf-checkin-result {
+    margin: 1.5rem 2rem;
+    padding: 1.5rem;
+    border-radius: var(--pf-radius);
+    text-align: center;
+    animation: pf-slide-in 0.3s ease;
+}
+
+@keyframes pf-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pf-result-loading {
+    background: var(--pf-gray-50);
+}
+
+.pf-result-success {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+}
+
+.pf-result-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+
+.pf-checkin-success h4,
+.pf-checkin-error h4 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+}
+
+.pf-checkin-success h4 {
+    color: var(--pf-success);
+}
+
+.pf-checkin-error h4 {
+    color: var(--pf-error);
+}
+
+.pf-checkin-success p,
+.pf-checkin-error p {
+    margin: 0.25rem 0;
+    font-size: 0.875rem;
+}
+
+.pf-success-icon,
+.pf-error-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+}
+
+.pf-checkin-success .pf-success-icon {
+    background: var(--pf-success);
+    color: white;
+}
+
+.pf-checkin-error .pf-error-icon {
+    background: var(--pf-error);
+    color: white;
+}
+
+.pf-ticket-qty {
+    font-weight: 600;
+    color: var(--pf-primary);
+}
+
+/* Recent Check-ins */
+.pf-recent-checkins {
+    padding: 1.5rem 2rem 2rem;
+    border-top: 1px solid var(--pf-gray-200);
+}
+
+.pf-recent-checkins h3 {
+    font-size: 1rem;
+    color: var(--pf-gray-700);
+    margin: 0 0 1rem;
+}
+
+.pf-checkins-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.pf-recent-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    background: var(--pf-gray-50);
+    border-radius: var(--pf-radius);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.pf-recent-item:last-child {
+    margin-bottom: 0;
+}
+
+.pf-recent-name {
+    flex: 1;
+    font-weight: 500;
+    color: var(--pf-gray-900);
+}
+
+.pf-recent-code {
+    font-family: monospace;
+    color: var(--pf-gray-500);
+}
+
+.pf-recent-qty {
+    font-weight: 600;
+    color: var(--pf-primary);
+}
+
+.pf-recent-time {
+    color: var(--pf-gray-500);
+    font-size: 0.75rem;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .pf-checkin-header {
+        padding: 1rem 1.5rem;
+    }
+
+    .pf-checkin-content {
+        padding: 1.5rem;
+    }
+
+    .pf-scanner-viewport {
+        height: 250px;
+    }
+
+    .pf-scanner-frame {
+        width: 160px;
+        height: 160px;
+    }
+
+    .pf-checkin-result {
+        margin: 1rem;
+    }
+
+    .pf-recent-checkins {
+        padding: 1rem 1.5rem 1.5rem;
+    }
+
+    .pf-recent-item {
+        flex-wrap: wrap;
+    }
+
+    .pf-recent-name {
+        flex-basis: 100%;
+    }
+}
+
+/* ============================================
+   Mobile Touch Target Accessibility (WCAG 2.5.5)
+   Minimum 44x44px touch targets on mobile
+   ============================================ */
+
+@media (pointer: coarse), (max-width: 768px) {
+    /* Ensure all buttons have minimum 44px touch target */
+    .pf-btn,
+    .pf-vote-btn,
+    .pf-tab-btn,
+    .pf-checkin-tab,
+    button[type="submit"],
+    input[type="submit"],
+    input[type="button"] {
+        min-height: 44px;
+        min-width: 44px;
+        padding: 0.75rem 1rem;
+    }
+
+    /* Larger buttons for primary actions */
+    .pf-btn-primary,
+    .pf-btn-large {
+        min-height: 48px;
+        padding: 0.875rem 1.25rem;
+    }
+
+    /* Form inputs need adequate touch targets */
+    .pf-input,
+    .pf-select,
+    .pf-textarea {
+        min-height: 44px;
+        padding: 0.875rem 1rem;
+        font-size: 16px; /* Prevent iOS zoom on focus */
+    }
+
+    /* Checkboxes and radio buttons */
+    input[type="checkbox"],
+    input[type="radio"] {
+        min-width: 24px;
+        min-height: 24px;
+    }
+
+    /* Make checkbox/radio labels into touch targets */
+    .pf-form-group label,
+    .pf-checkbox-label,
+    .pf-radio-label {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0.5rem 0;
+        gap: 0.75rem;
+    }
+
+    /* Tab navigation touch targets */
+    .pf-schedule-tabs .pf-tab-btn,
+    .pf-checkin-tabs .pf-checkin-tab {
+        min-height: 44px;
+        padding: 0.75rem 1.25rem;
+    }
+
+    /* Performer cards in voting */
+    .pf-performer-card {
+        padding: 1rem;
+    }
+
+    .pf-vote-input {
+        min-width: 48px;
+        min-height: 48px;
+        font-size: 1.25rem;
+    }
+
+    /* Navigation links */
+    .pf-nav-link,
+    .pf-pagination a {
+        min-height: 44px;
+        min-width: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem 0.75rem;
+    }
+
+    /* Schedule/Event cards - ensure adequate spacing */
+    .pf-show-card {
+        padding: 1rem;
+    }
+
+    .pf-show-card a {
+        display: block;
+        padding: 0.5rem 0;
+    }
+
+    /* Filter dropdown select */
+    .pf-filter select,
+    .pf-schedule-filter select {
+        min-height: 44px;
+        padding: 0.75rem 2rem 0.75rem 1rem;
+    }
+
+    /* Flyer generator controls */
+    .pf-flyer-control button,
+    .pf-flyer-download {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    /* Application form fields spacing */
+    .pf-application-form .pf-form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    /* Volunteer shift selection */
+    .pf-shift-checkbox label {
+        min-height: 44px;
+        padding: 0.75rem;
+        display: flex;
+        align-items: center;
+    }
+
+    /* Results table touch targets */
+    .pf-results-table td,
+    .pf-results-table th {
+        padding: 0.875rem 0.75rem;
+    }
+
+    /* Recent check-ins list items */
+    .pf-recent-item {
+        min-height: 44px;
+        padding: 0.75rem 0;
+    }
+
+    /* Close/dismiss buttons */
+    .pf-close-btn,
+    .pf-dismiss-btn,
+    [aria-label="Close"],
+    [aria-label="Dismiss"] {
+        min-width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Icon-only buttons */
+    .pf-icon-btn {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 0.5rem;
+    }
+
+    /* Ensure adequate spacing between touch targets */
+    .pf-btn + .pf-btn,
+    .pf-form-actions .pf-btn + .pf-btn {
+        margin-left: 0.5rem;
+    }
+
+    /* Stack buttons on very small screens */
+    @media (max-width: 400px) {
+        .pf-form-actions {
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .pf-form-actions .pf-btn {
+            width: 100%;
+            margin-left: 0;
+        }
+    }
+}

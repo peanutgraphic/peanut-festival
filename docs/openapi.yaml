@@ -1,0 +1,724 @@
+openapi: 3.0.3
+info:
+  title: Peanut Festival Plugin API
+  description: |
+    REST API for the Peanut Festival WordPress plugin.
+
+    This API provides endpoints for:
+    - Public event listings and voting
+    - Performer, volunteer, and vendor applications
+    - Ticket purchases via Stripe payments
+    - Admin management operations
+
+    ## Authentication
+
+    Public endpoints use `'permission_callback' => '__return_true'`.
+    Admin endpoints require WordPress authentication with `manage_options` capability.
+
+    ## Rate Limiting
+
+    Public endpoints are rate-limited to prevent abuse:
+    - **Voting**: 10 requests per minute
+    - **Applications**: 5 requests per 5 minutes
+    - **Payments**: 10 requests per minute
+
+    Rate-limited responses return `429 Too Many Requests` with `Retry-After` header.
+  version: 1.0.0
+  contact:
+    name: Peanut Festival Support
+  license:
+    name: GPL-2.0-or-later
+    url: https://www.gnu.org/licenses/gpl-2.0.html
+
+servers:
+  - url: /wp-json/peanut-festival/v1
+    description: WordPress REST API base
+
+tags:
+  - name: Events
+    description: Public event listings
+  - name: Voting
+    description: Audience voting operations
+  - name: Applications
+    description: Performer, volunteer, and vendor applications
+  - name: Payments
+    description: Stripe payment processing
+  - name: Flyers
+    description: Flyer template retrieval
+
+paths:
+  /events:
+    get:
+      tags:
+        - Events
+      summary: Get public events
+      description: Returns a list of public shows/events with status on_sale, sold_out, or scheduled.
+      operationId: getPublicEvents
+      parameters:
+        - name: festival_id
+          in: query
+          description: Filter events by festival ID
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PublicEvent'
+
+  /vote/status/{show_slug}:
+    get:
+      tags:
+        - Voting
+      summary: Get voting status for a show
+      description: Returns current voting status including active group, performers, and time remaining.
+      operationId: getVotingStatus
+      parameters:
+        - name: show_slug
+          in: path
+          required: true
+          description: URL-friendly show identifier
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9-_]+$'
+      responses:
+        '200':
+          description: Voting status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      active_group:
+                        type: string
+                        description: Current voting group (e.g., "pool", "semifinals", "finals")
+                      is_open:
+                        type: boolean
+                        description: Whether voting is currently open
+                      time_remaining:
+                        type: integer
+                        description: Seconds until voting closes
+                      performers:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/VotingPerformer'
+                      hide_bios:
+                        type: boolean
+
+  /vote/submit:
+    post:
+      tags:
+        - Voting
+      summary: Submit a vote
+      description: |
+        Submit ranked performer votes for a show. Uses Borda count ranking.
+        Rate limited to 10 requests per minute.
+      operationId: submitVote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - show_slug
+                - performer_ids
+                - token
+              properties:
+                show_slug:
+                  type: string
+                  description: Show identifier
+                performer_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: Ordered list of performer IDs (first = highest rank)
+                token:
+                  type: string
+                  description: Unique voter token for duplicate prevention
+      responses:
+        '200':
+          description: Vote recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Missing parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds until rate limit resets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /apply/performer:
+    post:
+      tags:
+        - Applications
+      summary: Submit performer application
+      description: |
+        Submit an application to perform at a festival.
+        Rate limited to 5 requests per 5 minutes.
+      operationId: submitPerformerApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - festival_id
+                - name
+                - email
+              properties:
+                festival_id:
+                  type: integer
+                  description: Festival to apply for
+                name:
+                  type: string
+                  description: Performer/band name
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                bio:
+                  type: string
+                  description: Performer biography
+                website:
+                  type: string
+                  format: uri
+                performance_type:
+                  type: string
+                  enum: [music, comedy, dance, magic, other]
+                technical_requirements:
+                  type: string
+                social_links:
+                  type: object
+                  description: Social media URLs
+                  additionalProperties:
+                    type: string
+      responses:
+        '200':
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        description: Application ID
+        '400':
+          description: Missing required fields or duplicate email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /volunteer/signup:
+    post:
+      tags:
+        - Applications
+      summary: Submit volunteer signup
+      description: |
+        Register as a festival volunteer.
+        Rate limited to 5 requests per 5 minutes.
+      operationId: submitVolunteerSignup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - festival_id
+                - name
+                - email
+              properties:
+                festival_id:
+                  type: integer
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                emergency_contact:
+                  type: string
+                  description: Emergency contact name
+                emergency_phone:
+                  type: string
+                skills:
+                  type: array
+                  items:
+                    type: string
+                  description: Volunteer skills (e.g., ["first_aid", "spanish"])
+                availability:
+                  type: array
+                  items:
+                    type: string
+                  description: Available dates/times
+                shirt_size:
+                  type: string
+                  enum: [XS, S, M, L, XL, XXL]
+                dietary_restrictions:
+                  type: string
+      responses:
+        '200':
+          description: Signup submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponse'
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /volunteer/shifts/{festival_id}:
+    get:
+      tags:
+        - Applications
+      summary: Get available volunteer shifts
+      description: Returns open volunteer shifts for a festival
+      operationId: getPublicShifts
+      parameters:
+        - name: festival_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Shifts retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VolunteerShift'
+
+  /apply/vendor:
+    post:
+      tags:
+        - Applications
+      summary: Submit vendor application
+      description: |
+        Apply to be a vendor at a festival.
+        Rate limited to 5 requests per 5 minutes.
+      operationId: submitVendorApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - festival_id
+                - business_name
+                - email
+              properties:
+                festival_id:
+                  type: integer
+                business_name:
+                  type: string
+                contact_name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                vendor_type:
+                  type: string
+                  enum: [food, merchandise, craft, sponsor]
+                description:
+                  type: string
+                  description: Business description
+                products:
+                  type: string
+                  description: Products/services offered
+                booth_requirements:
+                  type: string
+                electricity_needed:
+                  type: boolean
+      responses:
+        '200':
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationResponse'
+
+  /flyer/templates/{festival_id}:
+    get:
+      tags:
+        - Flyers
+      summary: Get flyer templates
+      description: Returns available flyer templates for a festival
+      operationId: getFlyerTemplates
+      parameters:
+        - name: festival_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Templates retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FlyerTemplate'
+
+  /payments/config:
+    get:
+      tags:
+        - Payments
+      summary: Get payment configuration
+      description: Returns Stripe publishable key and test mode status
+      operationId: getPaymentConfig
+      responses:
+        '200':
+          description: Payment config retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      publishable_key:
+                        type: string
+                        description: Stripe publishable key
+                      test_mode:
+                        type: boolean
+
+  /payments/create-intent:
+    post:
+      tags:
+        - Payments
+      summary: Create payment intent
+      description: |
+        Creates a Stripe PaymentIntent for ticket purchase.
+        Rate limited to 10 requests per minute.
+      operationId: createPaymentIntent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - show_id
+                - email
+              properties:
+                show_id:
+                  type: integer
+                quantity:
+                  type: integer
+                  default: 1
+                  minimum: 1
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+      responses:
+        '200':
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      client_secret:
+                        type: string
+                        description: Stripe client secret for frontend
+                      amount:
+                        type: number
+                        description: Total amount in dollars
+        '400':
+          description: Missing required fields or invalid ticket price
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Show not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /payments/confirm:
+    post:
+      tags:
+        - Payments
+      summary: Confirm payment
+      description: |
+        Confirms a payment intent and issues tickets.
+        Rate limited to 10 requests per minute.
+      operationId: confirmPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_intent_id
+              properties:
+                payment_intent_id:
+                  type: string
+                  description: Stripe payment intent ID (pi_xxx)
+      responses:
+        '200':
+          description: Payment confirmed, tickets issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      ticket_id:
+                        type: integer
+                      ticket_code:
+                        type: string
+                        description: Unique ticket code for check-in
+
+  /payments/webhook:
+    post:
+      tags:
+        - Payments
+      summary: Stripe webhook handler
+      description: |
+        Handles Stripe webhook events (payment success, failure, refunds).
+        Should be configured in Stripe dashboard to point to this endpoint.
+      operationId: handleWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Stripe event payload
+      responses:
+        '200':
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+
+components:
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+
+    ApplicationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            id:
+              type: integer
+              description: Application ID
+
+    PublicEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        show_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        venue_name:
+          type: string
+        venue_address:
+          type: string
+        status:
+          type: string
+          enum: [on_sale, sold_out, scheduled]
+        featured:
+          type: boolean
+        kid_friendly:
+          type: boolean
+
+    VotingPerformer:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        bio:
+          type: string
+          description: May be empty if hide_bios is true
+        photo_url:
+          type: string
+          format: uri
+
+    VolunteerShift:
+      type: object
+      properties:
+        id:
+          type: integer
+        task_name:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        shift_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        slots_available:
+          type: integer
+          description: Remaining open slots
+
+    FlyerTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        template_url:
+          type: string
+          format: uri
+        mask_url:
+          type: string
+          format: uri
+        frame:
+          type: object
+          description: Frame positioning coordinates
+        namebox:
+          type: object
+          description: Name text area positioning
+        title:
+          type: string
+        subtitle:
+          type: string
+
+  securitySchemes:
+    WordPressAuth:
+      type: apiKey
+      in: cookie
+      name: wordpress_logged_in
+      description: WordPress authentication cookie

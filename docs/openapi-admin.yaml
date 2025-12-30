@@ -1,0 +1,896 @@
+openapi: 3.0.3
+info:
+  title: Peanut Festival Admin API
+  description: |
+    Admin REST API for the Peanut Festival WordPress plugin.
+
+    ## Authentication
+    All endpoints require WordPress authentication with `manage_options` capability.
+    Use the WordPress authentication cookie or application passwords.
+
+    ## Pagination
+    List endpoints support pagination with `page` and `per_page` parameters.
+    Response includes pagination metadata in the `pagination` object.
+
+    ## CRUD Operations
+    Most resources support standard CRUD operations:
+    - `GET /{resource}` - List all (with filtering)
+    - `GET /{resource}/{id}` - Get single item
+    - `POST /{resource}` - Create new item
+    - `PUT /{resource}/{id}` - Update existing item
+    - `DELETE /{resource}/{id}` - Delete item
+  version: 1.0.0
+  license:
+    name: GPL-2.0-or-later
+
+servers:
+  - url: /wp-json/peanut-festival/v1/admin
+    description: WordPress REST API admin namespace
+
+tags:
+  - name: Dashboard
+    description: Dashboard statistics
+  - name: Festivals
+    description: Festival management
+  - name: Shows
+    description: Show/event management
+  - name: Performers
+    description: Performer management and applications
+  - name: Venues
+    description: Venue management
+  - name: Volunteers
+    description: Volunteer management and shifts
+  - name: Vendors
+    description: Vendor management
+  - name: Sponsors
+    description: Sponsor management
+  - name: Voting
+    description: Voting configuration and results
+  - name: Attendees
+    description: Attendee and ticket management
+  - name: Messaging
+    description: Internal messaging system
+  - name: Transactions
+    description: Financial transactions
+  - name: Settings
+    description: Plugin settings
+  - name: Integrations
+    description: Third-party integrations (Eventbrite, Mailchimp)
+
+paths:
+  /dashboard/stats:
+    get:
+      tags:
+        - Dashboard
+      summary: Get dashboard statistics
+      description: Returns overview statistics for the active festival
+      operationId: getDashboardStats
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      festival:
+                        type: object
+                        description: Active festival info
+                      counts:
+                        type: object
+                        properties:
+                          shows:
+                            type: integer
+                          performers:
+                            type: integer
+                          volunteers:
+                            type: integer
+                          vendors:
+                            type: integer
+                          tickets_sold:
+                            type: integer
+                      revenue:
+                        type: object
+                        properties:
+                          total:
+                            type: number
+                          this_month:
+                            type: number
+
+  /festivals:
+    get:
+      tags:
+        - Festivals
+      summary: List festivals
+      operationId: getFestivals
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, active, completed, cancelled]
+      responses:
+        '200':
+          description: Festival list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+    post:
+      tags:
+        - Festivals
+      summary: Create festival
+      operationId: createFestival
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FestivalInput'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+
+  /festivals/{id}:
+    get:
+      tags:
+        - Festivals
+      summary: Get festival
+      operationId: getFestival
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Festival details
+    put:
+      tags:
+        - Festivals
+      summary: Update festival
+      operationId: updateFestival
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FestivalInput'
+      responses:
+        '200':
+          $ref: '#/components/responses/Updated'
+    delete:
+      tags:
+        - Festivals
+      summary: Delete festival
+      operationId: deleteFestival
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '204':
+          description: Festival deleted
+
+  /shows:
+    get:
+      tags:
+        - Shows
+      summary: List shows
+      operationId: getShows
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: festival_id
+          in: query
+          schema:
+            type: integer
+        - name: venue_id
+          in: query
+          schema:
+            type: integer
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          $ref: '#/components/schemas/PaginatedResponse'
+    post:
+      tags:
+        - Shows
+      summary: Create show
+      operationId: createShow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShowInput'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+
+  /shows/{id}/performers:
+    get:
+      tags:
+        - Shows
+      summary: Get show performers
+      description: Returns performers assigned to a show with slot details
+      operationId: getShowPerformers
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Performer list with assignment details
+    post:
+      tags:
+        - Shows
+      summary: Add performer to show
+      operationId: addShowPerformer
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - performer_id
+              properties:
+                performer_id:
+                  type: integer
+                slot_order:
+                  type: integer
+                set_length_minutes:
+                  type: integer
+                performance_time:
+                  type: string
+                  format: time
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+
+  /performers:
+    get:
+      tags:
+        - Performers
+      summary: List performers
+      operationId: getPerformers
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: festival_id
+          in: query
+          schema:
+            type: integer
+        - name: application_status
+          in: query
+          schema:
+            type: string
+            enum: [pending, under_review, accepted, rejected, waitlisted, confirmed, cancelled]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/schemas/PaginatedResponse'
+
+  /performers/{id}/review:
+    post:
+      tags:
+        - Performers
+      summary: Review performer application
+      operationId: reviewPerformer
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [accepted, rejected, waitlisted, under_review]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Application reviewed
+
+  /performers/{id}/notify:
+    post:
+      tags:
+        - Performers
+      summary: Send notification to performer
+      operationId: notifyPerformer
+      parameters:
+        - $ref: '#/components/parameters/id'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template:
+                  type: string
+                  description: Email template name
+                custom_message:
+                  type: string
+      responses:
+        '200':
+          description: Notification sent
+
+  /venues:
+    get:
+      tags:
+        - Venues
+      summary: List venues
+      operationId: getVenues
+      responses:
+        '200':
+          $ref: '#/components/schemas/PaginatedResponse'
+    post:
+      tags:
+        - Venues
+      summary: Create venue
+      operationId: createVenue
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VenueInput'
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+
+  /voting/config/{show_slug}:
+    get:
+      tags:
+        - Voting
+      summary: Get voting configuration
+      operationId: getVotingConfig
+      parameters:
+        - name: show_slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Voting configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      active_group:
+                        type: string
+                      groups:
+                        type: object
+                        additionalProperties:
+                          type: array
+                          items:
+                            type: integer
+                      voting_open:
+                        type: boolean
+                      voting_start:
+                        type: string
+                        format: date-time
+                      voting_end:
+                        type: string
+                        format: date-time
+    put:
+      tags:
+        - Voting
+      summary: Update voting configuration
+      operationId: saveVotingConfig
+      parameters:
+        - name: show_slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                active_group:
+                  type: string
+                voting_open:
+                  type: boolean
+                voting_start:
+                  type: string
+                  format: date-time
+                voting_end:
+                  type: string
+                  format: date-time
+                hide_bios:
+                  type: boolean
+      responses:
+        '200':
+          description: Configuration saved
+
+  /voting/results/{show_slug}:
+    get:
+      tags:
+        - Voting
+      summary: Get voting results
+      description: Returns Borda count weighted results by group
+      operationId: getVotingResults
+      parameters:
+        - name: show_slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Voting results
+
+  /voting/calculate-finals:
+    post:
+      tags:
+        - Voting
+      summary: Calculate finals from results
+      description: Moves top performers from pool to finals group
+      operationId: calculateVotingFinals
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - show_slug
+                - group_name
+                - advance_count
+              properties:
+                show_slug:
+                  type: string
+                group_name:
+                  type: string
+                  description: Source group (e.g., "pool")
+                advance_count:
+                  type: integer
+                  description: Number of performers to advance
+      responses:
+        '200':
+          description: Finals calculated
+
+  /volunteers:
+    get:
+      tags:
+        - Volunteers
+      summary: List volunteers
+      operationId: getVolunteers
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: festival_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/schemas/PaginatedResponse'
+
+  /volunteers/shifts:
+    get:
+      tags:
+        - Volunteers
+      summary: List volunteer shifts
+      operationId: getVolunteerShifts
+      parameters:
+        - name: festival_id
+          in: query
+          schema:
+            type: integer
+        - name: shift_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Shift list
+    post:
+      tags:
+        - Volunteers
+      summary: Create volunteer shift
+      operationId: createVolunteerShift
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - festival_id
+                - task_name
+                - shift_date
+              properties:
+                festival_id:
+                  type: integer
+                task_name:
+                  type: string
+                description:
+                  type: string
+                location:
+                  type: string
+                shift_date:
+                  type: string
+                  format: date
+                start_time:
+                  type: string
+                  format: time
+                end_time:
+                  type: string
+                  format: time
+                slots_total:
+                  type: integer
+      responses:
+        '201':
+          $ref: '#/components/responses/Created'
+
+  /tickets/{id}/check-in:
+    post:
+      tags:
+        - Attendees
+      summary: Check in a ticket
+      description: Marks ticket as checked in with timestamp
+      operationId: checkInTicket
+      parameters:
+        - $ref: '#/components/parameters/id'
+      responses:
+        '200':
+          description: Ticket checked in
+
+  /messages/conversations:
+    get:
+      tags:
+        - Messaging
+      summary: Get conversations
+      operationId: getConversations
+      responses:
+        '200':
+          description: Conversation list
+
+  /messages/broadcast:
+    post:
+      tags:
+        - Messaging
+      summary: Send broadcast message
+      description: Sends message to multiple recipients
+      operationId: sendBroadcast
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - recipient_type
+                - subject
+                - message
+              properties:
+                recipient_type:
+                  type: string
+                  enum: [all_performers, accepted_performers, volunteers, vendors]
+                festival_id:
+                  type: integer
+                subject:
+                  type: string
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Broadcast sent
+
+  /transactions:
+    get:
+      tags:
+        - Transactions
+      summary: List transactions
+      operationId: getTransactions
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+        - name: festival_id
+          in: query
+          schema:
+            type: integer
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [ticket, vendor_fee, sponsor, donation]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, completed, refunded, failed]
+      responses:
+        '200':
+          $ref: '#/components/schemas/PaginatedResponse'
+
+  /transactions/summary:
+    get:
+      tags:
+        - Transactions
+      summary: Get transaction summary
+      description: Returns financial summary by category
+      operationId: getTransactionsSummary
+      parameters:
+        - name: festival_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Transaction summary
+
+  /settings:
+    get:
+      tags:
+        - Settings
+      summary: Get plugin settings
+      operationId: getSettings
+      responses:
+        '200':
+          description: Settings object
+    put:
+      tags:
+        - Settings
+      summary: Update plugin settings
+      operationId: updateSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                active_festival_id:
+                  type: integer
+                stripe_test_mode:
+                  type: boolean
+                stripe_publishable_key:
+                  type: string
+                stripe_secret_key:
+                  type: string
+                eventbrite_api_key:
+                  type: string
+                mailchimp_api_key:
+                  type: string
+      responses:
+        '200':
+          description: Settings updated
+
+  /eventbrite/sync:
+    post:
+      tags:
+        - Integrations
+      summary: Sync events from Eventbrite
+      operationId: syncEventbrite
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                festival_id:
+                  type: integer
+                organization_id:
+                  type: string
+      responses:
+        '200':
+          description: Sync completed
+
+  /mailchimp/lists:
+    get:
+      tags:
+        - Integrations
+      summary: Get Mailchimp lists
+      operationId: getMailchimpLists
+      responses:
+        '200':
+          description: Available lists
+
+  /mailchimp/sync/performers:
+    post:
+      tags:
+        - Integrations
+      summary: Sync performers to Mailchimp
+      operationId: syncPerformersToMailchimp
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                list_id:
+                  type: string
+                festival_id:
+                  type: integer
+      responses:
+        '200':
+          description: Sync completed
+
+components:
+  parameters:
+    id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+    per_page:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+
+  responses:
+    Created:
+      description: Resource created
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              data:
+                type: object
+                properties:
+                  id:
+                    type: integer
+    Updated:
+      description: Resource updated
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+
+  schemas:
+    PaginatedResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total_pages:
+              type: integer
+            has_next:
+              type: boolean
+            has_prev:
+              type: boolean
+
+    FestivalInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, active, completed, cancelled]
+
+    ShowInput:
+      type: object
+      required:
+        - title
+        - festival_id
+        - show_date
+      properties:
+        title:
+          type: string
+        festival_id:
+          type: integer
+        venue_id:
+          type: integer
+        description:
+          type: string
+        show_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        ticket_price:
+          type: number
+        capacity:
+          type: integer
+        status:
+          type: string
+          enum: [draft, scheduled, on_sale, sold_out, completed, cancelled]
+
+    VenueInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zip:
+          type: string
+        capacity:
+          type: integer
+        amenities:
+          type: string
+        parking_info:
+          type: string
+        accessibility_info:
+          type: string
+
+  securitySchemes:
+    WordPressAuth:
+      type: apiKey
+      in: cookie
+      name: wordpress_logged_in
+      description: WordPress authentication cookie (requires manage_options capability)
+
+security:
+  - WordPressAuth: []
