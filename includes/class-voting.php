@@ -60,6 +60,13 @@ class Peanut_Festival_Voting {
             'weight_third' => 1,
             'hide_bios' => false,
             'reveal_results' => false,
+            // Vote verification options (Phase 2)
+            'verification_mode' => 'none', // none, email, sms, captcha
+            'require_email' => false,
+            'one_vote_per_email' => false,
+            'require_captcha' => false,
+            'device_fingerprint' => true,
+            'rate_limit_votes' => 5, // max votes per minute per IP
         ];
 
         $config = wp_parse_args($config, $defaults);
@@ -350,5 +357,184 @@ class Peanut_Festival_Voting {
 
     public static function hash_ua(string $ua): string {
         return hash('sha256', $ua . NONCE_SALT);
+    }
+
+    // =========================================
+    // Vote Verification Methods (Phase 2)
+    // =========================================
+
+    /**
+     * Check if rate limit has been exceeded for an IP
+     */
+    public static function check_rate_limit(string $show_slug, string $ip_hash): bool {
+        $config = self::get_show_config($show_slug);
+        $max_votes = $config['rate_limit_votes'] ?? 5;
+
+        global $wpdb;
+        $table = Peanut_Festival_Database::get_table_name('votes');
+
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table
+             WHERE show_slug = %s
+             AND ip_hash = %s
+             AND voted_at > DATE_SUB(NOW(), INTERVAL 1 MINUTE)",
+            $show_slug,
+            $ip_hash
+        ));
+
+        return (int) $count < $max_votes;
+    }
+
+    /**
+     * Check if email has already been used to vote (when one_vote_per_email is enabled)
+     */
+    public static function has_email_voted(string $show_slug, string $group_name, string $email): bool {
+        $email_hash = hash('sha256', strtolower(trim($email)) . NONCE_SALT);
+
+        global $wpdb;
+        $table = Peanut_Festival_Database::get_table_name('votes');
+
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table
+             WHERE show_slug = %s
+             AND group_name = %s
+             AND email_hash = %s",
+            $show_slug,
+            $group_name,
+            $email_hash
+        ));
+
+        return (int) $count > 0;
+    }
+
+    /**
+     * Generate email verification code
+     */
+    public static function generate_email_verification(string $email, string $show_slug): string {
+        $code = wp_generate_password(6, false, false);
+        $email_hash = hash('sha256', strtolower(trim($email)) . NONCE_SALT);
+
+        set_transient(
+            'pf_vote_verify_' . $email_hash . '_' . $show_slug,
+            $code,
+            15 * MINUTE_IN_SECONDS
+        );
+
+        return $code;
+    }
+
+    /**
+     * Verify email code
+     */
+    public static function verify_email_code(string $email, string $show_slug, string $code): bool {
+        $email_hash = hash('sha256', strtolower(trim($email)) . NONCE_SALT);
+        $stored_code = get_transient('pf_vote_verify_' . $email_hash . '_' . $show_slug);
+
+        if (!$stored_code) {
+            return false;
+        }
+
+        if ($stored_code !== strtoupper($code)) {
+            return false;
+        }
+
+        // Delete the transient after successful verification
+        delete_transient('pf_vote_verify_' . $email_hash . '_' . $show_slug);
+        return true;
+    }
+
+    /**
+     * Send verification email
+     */
+    public static function send_verification_email(string $email, string $code, string $show_name = ''): bool {
+        $subject = 'Your Voting Verification Code';
+        $message = sprintf(
+            "Your verification code is: %s\n\n" .
+            "This code will expire in 15 minutes.\n\n" .
+            "%s",
+            $code,
+            $show_name ? "You are voting for: {$show_name}" : ''
+        );
+
+        $headers = ['Content-Type: text/plain; charset=UTF-8'];
+
+        return wp_mail($email, $subject, $message, $headers);
+    }
+
+    /**
+     * Generate device fingerprint hash
+     */
+    public static function generate_fingerprint(array $data): string {
+        $fp_data = [
+            'ua' => $data['user_agent'] ?? '',
+            'screen' => $data['screen_resolution'] ?? '',
+            'tz' => $data['timezone'] ?? '',
+            'lang' => $data['language'] ?? '',
+            'platform' => $data['platform'] ?? '',
+        ];
+
+        return hash('sha256', json_encode($fp_data) . NONCE_SALT);
+    }
+
+    /**
+     * Check if fingerprint has already voted
+     */
+    public static function has_fingerprint_voted(string $show_slug, string $group_name, string $fingerprint): bool {
+        global $wpdb;
+        $table = Peanut_Festival_Database::get_table_name('votes');
+
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table
+             WHERE show_slug = %s
+             AND group_name = %s
+             AND device_fingerprint = %s",
+            $show_slug,
+            $group_name,
+            $fingerprint
+        ));
+
+        return (int) $count > 0;
+    }
+
+    /**
+     * Validate vote with all configured verification checks
+     */
+    public static function validate_vote(string $show_slug, string $group_name, array $vote_data): array {
+        $config = self::get_show_config($show_slug);
+        $errors = [];
+
+        // Check rate limit
+        $ip_hash = self::hash_ip($vote_data['ip'] ?? '');
+        if (!self::check_rate_limit($show_slug, $ip_hash)) {
+            $errors[] = 'Rate limit exceeded. Please wait before voting again.';
+        }
+
+        // Check token/IP duplicate
+        if (self::has_voted($show_slug, $group_name, $vote_data['token'] ?? '', $ip_hash)) {
+            $errors[] = 'You have already voted in this round.';
+        }
+
+        // Check email verification if required
+        if ($config['require_email'] && empty($vote_data['email'])) {
+            $errors[] = 'Email address is required.';
+        }
+
+        if ($config['one_vote_per_email'] && !empty($vote_data['email'])) {
+            if (self::has_email_voted($show_slug, $group_name, $vote_data['email'])) {
+                $errors[] = 'This email address has already been used to vote.';
+            }
+        }
+
+        // Check device fingerprint if enabled
+        if ($config['device_fingerprint'] && !empty($vote_data['fingerprint'])) {
+            if (self::has_fingerprint_voted($show_slug, $group_name, $vote_data['fingerprint'])) {
+                $errors[] = 'This device has already voted.';
+            }
+        }
+
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors,
+        ];
     }
 }

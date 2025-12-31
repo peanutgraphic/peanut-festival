@@ -39,6 +39,9 @@ class Peanut_Festival_Database {
         'performer_applications',
         'vendor_applications',
         'job_queue',
+        'booker_links',
+        'competitions',
+        'competition_matches',
     ];
 
     /**

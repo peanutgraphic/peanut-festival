@@ -111,8 +111,14 @@ class Peanut_Festival_Shows {
         }
 
         if ($args['status']) {
-            $sql .= " AND s.status = %s";
-            $values[] = $args['status'];
+            if (is_array($args['status'])) {
+                $placeholders = implode(',', array_fill(0, count($args['status']), '%s'));
+                $sql .= " AND s.status IN ($placeholders)";
+                $values = array_merge($values, $args['status']);
+            } else {
+                $sql .= " AND s.status = %s";
+                $values[] = $args['status'];
+            }
         }
 
         if ($args['date_from']) {
@@ -318,5 +324,156 @@ class Peanut_Festival_Shows {
      */
     public static function count(array $where = []): int {
         return Peanut_Festival_Database::count('shows', $where);
+    }
+
+    /**
+     * Mark a show as completed.
+     *
+     * Fires the show_completed hook for Booker integration.
+     *
+     * @since 1.1.0
+     *
+     * @param int $id The show ID.
+     * @return int|false Rows updated or false.
+     */
+    public static function complete(int $id): int|false {
+        $result = self::update($id, [
+            'status' => 'completed',
+            'completed_at' => current_time('mysql'),
+        ]);
+
+        if ($result !== false) {
+            // Get performer IDs for this show
+            $performers = self::get_performers($id);
+            $performer_ids = array_map(function($p) {
+                return (int) $p->id;
+            }, $performers);
+
+            // Fire hook for Booker integration
+            Peanut_Festival_Booker_Integration::fire_show_completed($id, $performer_ids);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Schedule performers for a show.
+     *
+     * Updates the show with performers and fires scheduling hook for calendar sync.
+     *
+     * @since 1.1.0
+     *
+     * @param int   $show_id      Show ID.
+     * @param array $performer_ids Array of performer IDs to add.
+     * @param array $options      Optional settings per performer (keyed by performer_id).
+     * @return bool Success.
+     */
+    public static function schedule_performers(int $show_id, array $performer_ids, array $options = []): bool {
+        $show = self::get_by_id($show_id);
+        if (!$show) {
+            return false;
+        }
+
+        // Clear existing performers
+        Peanut_Festival_Database::delete('show_performers', ['show_id' => $show_id]);
+
+        // Add each performer
+        $slot = 1;
+        foreach ($performer_ids as $performer_id) {
+            $performer_options = $options[$performer_id] ?? [];
+            self::add_performer($show_id, $performer_id, array_merge([
+                'slot_order' => $slot++,
+            ], $performer_options));
+        }
+
+        // Fire hook for Booker calendar sync
+        if (!empty($performer_ids)) {
+            Peanut_Festival_Booker_Integration::fire_show_scheduled(
+                $show_id,
+                $performer_ids,
+                $show->show_date,
+                $show->start_time ?? '00:00:00',
+                $show->end_time ?? '23:59:59'
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if performer has a conflict for a given date/time.
+     *
+     * Checks both Festival shows and Booker availability (if integration enabled).
+     *
+     * @since 1.1.0
+     *
+     * @param int    $performer_id Performer ID.
+     * @param string $date Show date (Y-m-d).
+     * @param string $start_time Start time.
+     * @param string $end_time End time.
+     * @param int    $exclude_show_id Optional show ID to exclude from conflict check.
+     * @return bool True if conflict exists.
+     */
+    public static function has_schedule_conflict(
+        int $performer_id,
+        string $date,
+        string $start_time,
+        string $end_time,
+        int $exclude_show_id = 0
+    ): bool {
+        global $wpdb;
+        $shows_table = Peanut_Festival_Database::get_table_name('shows');
+        $sp_table = Peanut_Festival_Database::get_table_name('show_performers');
+
+        // Check Festival shows
+        $sql = $wpdb->prepare(
+            "SELECT COUNT(*) FROM $sp_table sp
+             JOIN $shows_table s ON sp.show_id = s.id
+             WHERE sp.performer_id = %d
+             AND s.show_date = %s
+             AND s.status NOT IN ('cancelled', 'completed')
+             AND (
+                 (s.start_time <= %s AND s.end_time > %s)
+                 OR (s.start_time < %s AND s.end_time >= %s)
+                 OR (s.start_time >= %s AND s.end_time <= %s)
+             )",
+            $performer_id,
+            $date,
+            $start_time, $start_time,
+            $end_time, $end_time,
+            $start_time, $end_time
+        );
+
+        if ($exclude_show_id) {
+            $sql .= $wpdb->prepare(" AND s.id != %d", $exclude_show_id);
+        }
+
+        $festival_conflict = (int) $wpdb->get_var($sql) > 0;
+
+        if ($festival_conflict) {
+            return true;
+        }
+
+        // Check Booker availability if integration is enabled
+        $booker = Peanut_Festival_Booker_Integration::get_instance();
+        if ($booker->is_enabled() && $booker->is_booker_active()) {
+            $link = $booker->get_link_by_festival_id($performer_id);
+            if ($link && $link->booker_performer_id) {
+                $blocked = $booker->get_booker_availability(
+                    $link->booker_performer_id,
+                    $date,
+                    $date
+                );
+
+                foreach ($blocked as $block) {
+                    // Simple overlap check for blocked dates
+                    if ($block['date'] === $date) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }

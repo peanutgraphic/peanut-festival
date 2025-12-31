@@ -158,15 +158,16 @@ export function Volunteers() {
 
           {/* Volunteers Table */}
           <div className="card overflow-hidden">
-            <table className="table">
+            <div className="overflow-x-auto">
+              <table className="table min-w-[800px]">
               <thead>
                 <tr>
-                  <th>Volunteer</th>
-                  <th>Phone</th>
-                  <th>Skills</th>
-                  <th>Hours</th>
-                  <th>Status</th>
-                  <th className="w-32">Actions</th>
+                  <th style={{ minWidth: '180px' }}>Volunteer</th>
+                  <th style={{ minWidth: '120px' }}>Phone</th>
+                  <th style={{ minWidth: '150px' }}>Skills</th>
+                  <th style={{ width: '80px' }}>Hours</th>
+                  <th style={{ width: '100px' }}>Status</th>
+                  <th style={{ width: '130px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -265,6 +266,7 @@ export function Volunteers() {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </>
       ) : (

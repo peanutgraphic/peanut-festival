@@ -343,6 +343,216 @@ export const mailchimpApi = {
   },
 };
 
+// Competitions
+export interface Competition {
+  id: number;
+  festival_id: number;
+  name: string;
+  description?: string;
+  competition_type: 'single_elimination' | 'double_elimination' | 'round_robin';
+  voting_method: 'head_to_head' | 'borda' | 'judges' | 'combined';
+  rounds_count: number;
+  current_round: number;
+  status: 'setup' | 'registration' | 'seeding' | 'active' | 'paused' | 'completed' | 'cancelled';
+  winner_performer_id?: number;
+  runner_up_performer_id?: number;
+  config?: Record<string, unknown>;
+  scheduled_start?: string;
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+export interface CompetitionMatch {
+  id: number;
+  competition_id: number;
+  round_number: number;
+  match_number: number;
+  bracket_position?: string;
+  performer_1_id?: number;
+  performer_1_name?: string;
+  performer_1_seed?: number;
+  performer_2_id?: number;
+  performer_2_name?: string;
+  performer_2_seed?: number;
+  winner_id?: number;
+  winner_name?: string;
+  votes_performer_1: number;
+  votes_performer_2: number;
+  status: 'pending' | 'scheduled' | 'voting' | 'completed' | 'bye';
+  scheduled_time?: string;
+  voting_opens_at?: string;
+  voting_closes_at?: string;
+}
+
+export interface BracketData {
+  competition: Competition;
+  rounds: Record<number, Array<{
+    id: number;
+    match_number: number;
+    performer_1: { id?: number; name: string; seed?: number; votes: number };
+    performer_2: { id?: number; name: string; seed?: number; votes: number };
+    winner_id?: number;
+    status: string;
+    scheduled_time?: string;
+    voting_closes_at?: string;
+  }>>;
+}
+
+export const competitionsApi = {
+  getAll: async (festivalId?: number): Promise<Competition[]> => {
+    const response = await client.get<{ competitions: Competition[] }>('/competitions', {
+      params: festivalId ? { festival_id: festivalId } : undefined,
+    });
+    return response.data.competitions;
+  },
+  getById: async (id: number): Promise<Competition> => {
+    const response = await client.get<{ competition: Competition }>(`/competitions/${id}`);
+    return response.data.competition;
+  },
+  getBracket: async (id: number): Promise<BracketData> => {
+    const response = await client.get<BracketData>(`/competitions/${id}/bracket`);
+    return response.data;
+  },
+  create: async (data: Partial<Competition>): Promise<{ competition_id: number }> => {
+    const response = await client.post<{ success: boolean; competition_id: number }>('/admin/competitions', data);
+    return response.data;
+  },
+  update: async (id: number, data: Partial<Competition>): Promise<void> => {
+    await client.patch(`/admin/competitions/${id}`, data);
+  },
+  delete: async (id: number): Promise<void> => {
+    await client.delete(`/admin/competitions/${id}`);
+  },
+  generateBracket: async (id: number, performerIds: number[]): Promise<BracketData> => {
+    const response = await client.post<{ success: boolean; bracket: BracketData }>(`/admin/competitions/${id}/generate`, {
+      performer_ids: performerIds,
+    });
+    return response.data.bracket;
+  },
+  startVoting: async (matchId: number, duration?: number): Promise<void> => {
+    await client.post(`/admin/matches/${matchId}/start`, { duration });
+  },
+  completeMatch: async (matchId: number, winnerId?: number): Promise<void> => {
+    await client.post(`/admin/matches/${matchId}/complete`, winnerId ? { winner_id: winnerId } : undefined);
+  },
+  submitVote: async (matchId: number, performerId: number): Promise<void> => {
+    await client.post(`/matches/${matchId}/vote`, { performer_id: performerId });
+  },
+};
+
+// Booker Integration
+export interface BookerIntegrationStatus {
+  booker_active: boolean;
+  integration_enabled: boolean;
+  settings: {
+    enabled: boolean;
+    auto_sync: boolean;
+    sync_direction: 'both' | 'festival_only' | 'booker_only';
+    show_booker_badge: boolean;
+    show_booker_rating: boolean;
+    calendar_sync: boolean;
+  };
+  linked_performers: number;
+}
+
+export interface BookerPerformer {
+  id: number;
+  user_id: number;
+  tier: string;
+  achievement_level: string;
+  average_rating: number;
+  completed_bookings: number;
+  display_name: string;
+  user_email: string;
+}
+
+export interface PerformerBookerProfile {
+  linked: boolean;
+  booker_performer_id?: number;
+  achievement_level?: string;
+  rating?: number;
+  completed_bookings?: number;
+  last_synced?: string;
+  profile_url?: string;
+}
+
+export const bookerApi = {
+  getStatus: async (): Promise<BookerIntegrationStatus> => {
+    const response = await client.get<BookerIntegrationStatus>('/booker/status');
+    return response.data;
+  },
+  getPerformers: async (): Promise<BookerPerformer[]> => {
+    const response = await client.get<{ performers: BookerPerformer[] }>('/booker/performers');
+    return response.data.performers;
+  },
+  createLink: async (festivalPerformerId: number, bookerPerformerId: number): Promise<{ link_id: number }> => {
+    const response = await client.post<{ success: boolean; link_id: number }>('/booker/link', {
+      festival_performer_id: festivalPerformerId,
+      booker_performer_id: bookerPerformerId,
+    });
+    return response.data;
+  },
+  removeLink: async (linkId: number): Promise<void> => {
+    await client.post('/booker/unlink', { link_id: linkId });
+  },
+  syncPerformer: async (festivalPerformerId: number): Promise<{ synced_at: string }> => {
+    const response = await client.post<{ success: boolean; synced_at: string }>('/booker/sync', {
+      festival_performer_id: festivalPerformerId,
+    });
+    return response.data;
+  },
+  getPerformerBookerProfile: async (performerId: number): Promise<PerformerBookerProfile> => {
+    const response = await client.get<PerformerBookerProfile>(`/performers/${performerId}/booker-profile`);
+    return response.data;
+  },
+};
+
+// Firebase
+export interface FirebaseSettings {
+  enabled: boolean;
+  project_id: string;
+  database_url: string;
+  api_key: string;
+  vapid_key: string;
+  credentials_file: string;
+  credentials_uploaded: boolean;
+}
+
+export const firebaseApi = {
+  getSettings: async (): Promise<FirebaseSettings> => {
+    const response = await client.get<ApiResponse<FirebaseSettings>>('/firebase/settings');
+    return response.data.data;
+  },
+  updateSettings: async (data: Partial<FirebaseSettings> & { credentials_json?: string }): Promise<void> => {
+    await client.put('/firebase/settings', data);
+  },
+  test: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await client.post<{ success: boolean; message: string }>('/firebase/test');
+    return response.data;
+  },
+  sync: async (festivalId?: number): Promise<{ success: boolean; message: string }> => {
+    const response = await client.post<{ success: boolean; message: string }>('/firebase/sync', {
+      festival_id: festivalId,
+    });
+    return response.data;
+  },
+  sendNotification: async (
+    title: string,
+    body: string,
+    topic?: string,
+    link?: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await client.post<{ success: boolean; message: string }>('/firebase/send-notification', {
+      title,
+      body,
+      topic,
+      link,
+    });
+    return response.data;
+  },
+};
+
 // Reports
 export interface TicketSalesData {
   over_time: Array<{ period: string; ticket_count: number; total_quantity: number; total_revenue: number }>;

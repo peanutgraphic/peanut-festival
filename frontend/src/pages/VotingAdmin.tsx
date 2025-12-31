@@ -56,7 +56,7 @@ export function VotingAdmin() {
       </div>
 
       {/* Show Selector */}
-      <div className="card p-4">
+      <div className="card p-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">Select Show</label>
         <select
           className="input max-w-md"
@@ -70,6 +70,18 @@ export function VotingAdmin() {
             </option>
           ))}
         </select>
+
+        {!selectedShow && shows.length === 0 && (
+          <p className="mt-3 text-sm text-gray-500">
+            No shows available. Create a show first to manage voting.
+          </p>
+        )}
+
+        {!selectedShow && shows.length > 0 && (
+          <p className="mt-3 text-sm text-gray-500">
+            Select a show above to view and manage voting controls and results.
+          </p>
+        )}
       </div>
 
       {selectedShow && (

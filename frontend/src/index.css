@@ -66,11 +66,7 @@ body {
 
 /* Table styles */
 .table-wrapper {
-  @apply overflow-x-auto -mx-4 sm:mx-0;
-}
-
-.table-wrapper > .table {
-  @apply min-w-[640px] sm:min-w-0;
+  @apply overflow-x-auto;
 }
 
 .table {

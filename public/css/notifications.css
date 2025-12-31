@@ -1,0 +1,285 @@
+/**
+ * Peanut Festival Notification Toast Styles
+ *
+ * Styles for in-app notification toasts from Firebase
+ *
+ * @package Peanut_Festival
+ * @since 1.2.0
+ */
+
+/* Toast Container */
+.pf-notification-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    max-width: 360px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    z-index: 999999;
+    animation: pf-toast-slide-in 0.3s ease-out;
+    border-left: 4px solid #6366f1;
+}
+
+.pf-notification-toast.pf-toast-exiting {
+    animation: pf-toast-slide-out 0.3s ease-in forwards;
+}
+
+/* Toast Content */
+.pf-toast-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.pf-toast-content strong {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 4px;
+    line-height: 1.3;
+}
+
+.pf-toast-content p {
+    margin: 0;
+    font-size: 14px;
+    color: #6b7280;
+    line-height: 1.4;
+}
+
+/* Close Button */
+.pf-toast-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.15s, color 0.15s;
+    flex-shrink: 0;
+}
+
+.pf-toast-close:hover {
+    background-color: #f3f4f6;
+    color: #374151;
+}
+
+/* Toast Types */
+.pf-notification-toast.pf-toast-success {
+    border-left-color: #10b981;
+}
+
+.pf-notification-toast.pf-toast-warning {
+    border-left-color: #f59e0b;
+}
+
+.pf-notification-toast.pf-toast-error {
+    border-left-color: #ef4444;
+}
+
+.pf-notification-toast.pf-toast-voting {
+    border-left-color: #8b5cf6;
+}
+
+/* Icon (optional) */
+.pf-toast-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 20px;
+}
+
+.pf-toast-icon.pf-icon-vote {
+    background: #ede9fe;
+    color: #7c3aed;
+}
+
+.pf-toast-icon.pf-icon-winner {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.pf-toast-icon.pf-icon-stage {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+/* Animations */
+@keyframes pf-toast-slide-in {
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes pf-toast-slide-out {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+}
+
+/* Progress Bar (auto-dismiss indicator) */
+.pf-toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #e5e7eb;
+    border-radius: 0 0 12px 12px;
+    overflow: hidden;
+}
+
+.pf-toast-progress-bar {
+    height: 100%;
+    background: #6366f1;
+    animation: pf-toast-progress 5s linear forwards;
+}
+
+@keyframes pf-toast-progress {
+    from {
+        width: 100%;
+    }
+    to {
+        width: 0%;
+    }
+}
+
+/* Stacked Toasts */
+.pf-notification-toast:nth-child(2) {
+    top: 100px;
+}
+
+.pf-notification-toast:nth-child(3) {
+    top: 180px;
+}
+
+.pf-notification-toast:nth-child(n+4) {
+    display: none;
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+    .pf-notification-toast {
+        top: auto;
+        bottom: 20px;
+        left: 16px;
+        right: 16px;
+        max-width: none;
+    }
+
+    .pf-notification-toast:nth-child(2) {
+        top: auto;
+        bottom: 100px;
+    }
+
+    .pf-notification-toast:nth-child(3) {
+        top: auto;
+        bottom: 180px;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .pf-notification-toast {
+        background: #1f2937;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .pf-toast-content strong {
+        color: #f9fafb;
+    }
+
+    .pf-toast-content p {
+        color: #9ca3af;
+    }
+
+    .pf-toast-close {
+        color: #6b7280;
+    }
+
+    .pf-toast-close:hover {
+        background-color: #374151;
+        color: #d1d5db;
+    }
+
+    .pf-toast-progress {
+        background: #374151;
+    }
+}
+
+/* PWA Install Prompt */
+.pf-pwa-install-prompt {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #6366f1;
+    color: #ffffff;
+    padding: 12px 24px;
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+    z-index: 999998;
+    animation: pf-prompt-bounce 0.5s ease-out;
+}
+
+.pf-pwa-install-prompt button {
+    background: #ffffff;
+    color: #6366f1;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.pf-pwa-install-prompt button:hover {
+    transform: scale(1.05);
+}
+
+.pf-pwa-install-prompt .pf-dismiss {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    padding: 4px 8px;
+}
+
+@keyframes pf-prompt-bounce {
+    0% {
+        transform: translateX(-50%) translateY(100px);
+        opacity: 0;
+    }
+    60% {
+        transform: translateX(-50%) translateY(-10px);
+    }
+    100% {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
+}

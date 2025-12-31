@@ -257,6 +257,37 @@ class Peanut_Festival_REST_API_Admin {
             'permission_callback' => [$this, 'check_admin_permission'],
         ]);
 
+        // Phase 3: Firebase
+        register_rest_route(self::NAMESPACE, '/firebase/settings', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_firebase_settings'],
+            'permission_callback' => [$this, 'check_admin_permission'],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firebase/settings', [
+            'methods' => 'PUT',
+            'callback' => [$this, 'update_firebase_settings'],
+            'permission_callback' => [$this, 'check_admin_permission'],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firebase/test', [
+            'methods' => 'POST',
+            'callback' => [$this, 'test_firebase'],
+            'permission_callback' => [$this, 'check_admin_permission'],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firebase/sync', [
+            'methods' => 'POST',
+            'callback' => [$this, 'sync_firebase'],
+            'permission_callback' => [$this, 'check_admin_permission'],
+        ]);
+
+        register_rest_route(self::NAMESPACE, '/firebase/send-notification', [
+            'methods' => 'POST',
+            'callback' => [$this, 'send_firebase_notification'],
+            'permission_callback' => [$this, 'check_admin_permission'],
+        ]);
+
         // Flyer templates
         register_rest_route(self::NAMESPACE, '/flyer-templates', [
             'methods' => 'GET',
@@ -1279,5 +1310,220 @@ class Peanut_Festival_REST_API_Admin {
         fclose($output);
 
         return $csv;
+    }
+
+    // Firebase (Phase 3)
+    public function get_firebase_settings(\WP_REST_Request $request): \WP_REST_Response {
+        $settings = Peanut_Festival_Settings::get();
+
+        // Return Firebase settings (mask sensitive data)
+        $firebase_settings = [
+            'enabled' => !empty($settings['firebase_enabled']),
+            'project_id' => $settings['firebase_project_id'] ?? '',
+            'database_url' => $settings['firebase_database_url'] ?? '',
+            'api_key' => $settings['firebase_api_key'] ?? '',
+            'vapid_key' => $settings['firebase_vapid_key'] ?? '',
+            'credentials_file' => $settings['firebase_credentials_file'] ?? '',
+            'credentials_uploaded' => !empty($settings['firebase_credentials_file']) && file_exists($settings['firebase_credentials_file']),
+        ];
+
+        return new \WP_REST_Response([
+            'success' => true,
+            'data' => $firebase_settings,
+        ]);
+    }
+
+    public function update_firebase_settings(\WP_REST_Request $request): \WP_REST_Response {
+        $data = $request->get_json_params();
+
+        $updates = [];
+
+        if (isset($data['enabled'])) {
+            $updates['firebase_enabled'] = (bool) $data['enabled'];
+        }
+
+        if (isset($data['project_id'])) {
+            $updates['firebase_project_id'] = sanitize_text_field($data['project_id']);
+        }
+
+        if (isset($data['database_url'])) {
+            $updates['firebase_database_url'] = esc_url_raw($data['database_url']);
+        }
+
+        if (isset($data['api_key'])) {
+            $updates['firebase_api_key'] = sanitize_text_field($data['api_key']);
+        }
+
+        if (isset($data['vapid_key'])) {
+            $updates['firebase_vapid_key'] = sanitize_text_field($data['vapid_key']);
+        }
+
+        // Handle credentials JSON upload (base64 encoded)
+        if (!empty($data['credentials_json'])) {
+            $credentials_json = base64_decode($data['credentials_json']);
+            $decoded = json_decode($credentials_json, true);
+
+            if (!$decoded || empty($decoded['project_id'])) {
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Invalid Firebase credentials JSON',
+                ], 400);
+            }
+
+            // Save credentials file
+            $upload_dir = wp_upload_dir();
+            $credentials_dir = $upload_dir['basedir'] . '/peanut-festival/';
+
+            if (!file_exists($credentials_dir)) {
+                wp_mkdir_p($credentials_dir);
+                // Add .htaccess to protect directory
+                file_put_contents($credentials_dir . '.htaccess', 'Deny from all');
+            }
+
+            $credentials_file = $credentials_dir . 'firebase-credentials.json';
+            file_put_contents($credentials_file, $credentials_json);
+            chmod($credentials_file, 0600);
+
+            $updates['firebase_credentials_file'] = $credentials_file;
+
+            // Auto-populate project ID from credentials
+            if (empty($updates['firebase_project_id'])) {
+                $updates['firebase_project_id'] = $decoded['project_id'];
+            }
+        }
+
+        if (!empty($updates)) {
+            Peanut_Festival_Settings::update($updates);
+        }
+
+        return new \WP_REST_Response([
+            'success' => true,
+            'message' => 'Firebase settings updated',
+        ]);
+    }
+
+    public function test_firebase(\WP_REST_Request $request): \WP_REST_Response {
+        if (!Peanut_Festival_Firebase::is_enabled()) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Firebase is not enabled',
+            ]);
+        }
+
+        try {
+            $firebase = Peanut_Festival_Firebase::get_instance();
+            $result = $firebase->write('_test/connection', [
+                'tested_at' => gmdate('c'),
+                'tested_by' => get_current_user_id(),
+            ]);
+
+            if ($result) {
+                // Clean up test data
+                $firebase->delete('_test');
+
+                return new \WP_REST_Response([
+                    'success' => true,
+                    'message' => 'Firebase connection successful',
+                ]);
+            }
+
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Failed to write to Firebase',
+            ]);
+
+        } catch (\Exception $e) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Firebase error: ' . $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function sync_firebase(\WP_REST_Request $request): \WP_REST_Response {
+        $festival_id = (int) $request->get_param('festival_id') ?: Peanut_Festival_Settings::get_active_festival_id();
+
+        if (!$festival_id) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'No festival selected',
+            ], 400);
+        }
+
+        if (!Peanut_Festival_Firebase::is_enabled()) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Firebase is not enabled',
+            ]);
+        }
+
+        try {
+            Peanut_Festival_Realtime_Sync::init_festival_sync($festival_id);
+
+            return new \WP_REST_Response([
+                'success' => true,
+                'message' => 'Festival synced to Firebase',
+            ]);
+
+        } catch (\Exception $e) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Sync error: ' . $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function send_firebase_notification(\WP_REST_Request $request): \WP_REST_Response {
+        if (!Peanut_Festival_Firebase::is_enabled()) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Firebase is not enabled',
+            ]);
+        }
+
+        $data = $request->get_json_params();
+        $title = sanitize_text_field($data['title'] ?? '');
+        $body = sanitize_textarea_field($data['body'] ?? '');
+        $topic = sanitize_text_field($data['topic'] ?? '');
+        $link = esc_url_raw($data['link'] ?? '');
+
+        if (empty($title) || empty($body)) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Title and body are required',
+            ], 400);
+        }
+
+        if (empty($topic)) {
+            // Default to active festival topic
+            $festival_id = Peanut_Festival_Settings::get_active_festival_id();
+            $topic = $festival_id ? 'festival_' . $festival_id : null;
+        }
+
+        if (!$topic) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'No topic specified and no active festival',
+            ], 400);
+        }
+
+        try {
+            $firebase = Peanut_Festival_Firebase::get_instance();
+            $result = $firebase->send_notification($topic, $title, $body, [
+                'link' => $link,
+                'type' => 'announcement',
+            ]);
+
+            return new \WP_REST_Response([
+                'success' => $result,
+                'message' => $result ? 'Notification sent' : 'Failed to send notification',
+            ]);
+
+        } catch (\Exception $e) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Notification error: ' . $e->getMessage(),
+            ]);
+        }
     }
 }

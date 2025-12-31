@@ -8,6 +8,30 @@ import { PerformerForm } from '@/components/performers/PerformerForm';
 import { Plus, Edit2, Trash2, Check, X, Clock, Search, Mail } from 'lucide-react';
 import type { Performer, PerformerStatus } from '@/types';
 
+function PerformerAvatar({ performer }: { performer: Performer }) {
+  const [imageError, setImageError] = useState(false);
+
+  if (!performer.photo_url || imageError) {
+    return (
+      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0">
+        <span className="text-white text-sm font-medium">
+          {performer.name.charAt(0).toUpperCase()}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={performer.photo_url}
+      alt={performer.name}
+      className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+      onError={() => setImageError(true)}
+      referrerPolicy="no-referrer"
+    />
+  );
+}
+
 const statusColors: Record<PerformerStatus, string> = {
   pending: 'badge-yellow',
   under_review: 'badge-blue',
@@ -147,15 +171,15 @@ export function Performers() {
 
       {/* Performers Table */}
       <div className="card overflow-hidden">
-        <div className="table-wrapper">
-        <table className="table">
+        <div className="overflow-x-auto">
+          <table className="table min-w-[700px]">
           <thead>
             <tr>
-              <th>Performer</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Applied</th>
-              <th className="w-32">Actions</th>
+              <th style={{ minWidth: '200px' }}>Performer</th>
+              <th style={{ minWidth: '120px' }}>Type</th>
+              <th style={{ width: '110px' }}>Status</th>
+              <th style={{ width: '100px' }}>Applied</th>
+              <th style={{ width: '140px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -170,22 +194,10 @@ export function Performers() {
                 <tr key={performer.id}>
                   <td>
                     <div className="flex items-center gap-3">
-                      {performer.photo_url ? (
-                        <img
-                          src={performer.photo_url}
-                          alt={performer.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                          <span className="text-gray-500 text-sm">
-                            {performer.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-medium text-gray-900">{performer.name}</div>
-                        <div className="text-xs text-gray-500">{performer.email}</div>
+                      <PerformerAvatar performer={performer} />
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-900 truncate">{performer.name}</div>
+                        <div className="text-xs text-gray-500 truncate">{performer.email}</div>
                       </div>
                     </div>
                   </td>

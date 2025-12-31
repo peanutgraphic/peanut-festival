@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { settingsApi, eventbriteApi, festivalsApi, mailchimpApi } from '@/api/endpoints';
+import { settingsApi, eventbriteApi, festivalsApi, mailchimpApi, firebaseApi, type FirebaseSettings } from '@/api/endpoints';
 import { useToast } from '@/components/common/Toast';
-import { Save, RefreshCw, Check, Users, Heart, Ticket, Layers } from 'lucide-react';
+import { Save, RefreshCw, Check, Users, Heart, Ticket, Layers, Flame, Upload, Bell, Send } from 'lucide-react';
 import type { Settings as SettingsType } from '@/types';
 
 export function Settings() {
   const [formData, setFormData] = useState<Partial<SettingsType>>({});
+  const [firebaseData, setFirebaseData] = useState<Partial<FirebaseSettings>>({});
+  const [notificationForm, setNotificationForm] = useState({ title: '', body: '', link: '' });
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 
@@ -135,6 +138,92 @@ export function Settings() {
     },
     onError: (error: Error) => addToast('error', error.message),
   });
+
+  // Firebase queries and mutations
+  const { data: firebaseSettings } = useQuery({
+    queryKey: ['firebase-settings'],
+    queryFn: firebaseApi.getSettings,
+  });
+
+  useEffect(() => {
+    if (firebaseSettings) {
+      setFirebaseData(firebaseSettings);
+    }
+  }, [firebaseSettings]);
+
+  const updateFirebaseMutation = useMutation({
+    mutationFn: firebaseApi.updateSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['firebase-settings'] });
+      addToast('success', 'Firebase settings saved');
+    },
+    onError: (error: Error) => addToast('error', error.message),
+  });
+
+  const testFirebaseMutation = useMutation({
+    mutationFn: firebaseApi.test,
+    onSuccess: (data) => {
+      if (data.success) {
+        addToast('success', data.message);
+      } else {
+        addToast('error', data.message);
+      }
+    },
+    onError: (error: Error) => addToast('error', error.message),
+  });
+
+  const syncFirebaseMutation = useMutation({
+    mutationFn: () => firebaseApi.sync(formData.active_festival_id || undefined),
+    onSuccess: (data) => {
+      if (data.success) {
+        addToast('success', data.message);
+      } else {
+        addToast('error', data.message);
+      }
+    },
+    onError: (error: Error) => addToast('error', error.message),
+  });
+
+  const sendNotificationMutation = useMutation({
+    mutationFn: () =>
+      firebaseApi.sendNotification(
+        notificationForm.title,
+        notificationForm.body,
+        undefined,
+        notificationForm.link
+      ),
+    onSuccess: (data) => {
+      if (data.success) {
+        addToast('success', data.message);
+        setNotificationForm({ title: '', body: '', link: '' });
+      } else {
+        addToast('error', data.message);
+      }
+    },
+    onError: (error: Error) => addToast('error', error.message),
+  });
+
+  const handleFirebaseChange = (field: keyof FirebaseSettings, value: string | boolean) => {
+    setFirebaseData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCredentialsUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      try {
+        JSON.parse(content); // Validate JSON
+        const base64 = btoa(content);
+        updateFirebaseMutation.mutate({ credentials_json: base64 });
+      } catch {
+        addToast('error', 'Invalid JSON file');
+      }
+    };
+    reader.readAsText(file);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -392,6 +481,213 @@ export function Settings() {
                   Contacts will be tagged with their type (Performer, Volunteer, Attendee) and festival year
                 </p>
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* Firebase Integration */}
+        <div className="card p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Flame className="w-5 h-5 text-orange-500" />
+            <h2 className="text-lg font-semibold">Firebase Real-Time</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Enable real-time updates and push notifications via Firebase
+          </p>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="firebase_enabled"
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                checked={firebaseData.enabled || false}
+                onChange={(e) => handleFirebaseChange('enabled', e.target.checked)}
+              />
+              <label htmlFor="firebase_enabled" className="text-sm font-medium text-gray-700">
+                Enable Firebase Integration
+              </label>
+            </div>
+
+            {firebaseData.enabled && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Project ID
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={firebaseData.project_id || ''}
+                      onChange={(e) => handleFirebaseChange('project_id', e.target.value)}
+                      placeholder="your-project-id"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Database URL
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      value={firebaseData.database_url || ''}
+                      onChange={(e) => handleFirebaseChange('database_url', e.target.value)}
+                      placeholder="https://your-project.firebaseio.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      API Key (Web)
+                    </label>
+                    <input
+                      type="password"
+                      className="input"
+                      value={firebaseData.api_key || ''}
+                      onChange={(e) => handleFirebaseChange('api_key', e.target.value)}
+                      placeholder="AIza..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      VAPID Key (Push Notifications)
+                    </label>
+                    <input
+                      type="password"
+                      className="input"
+                      value={firebaseData.vapid_key || ''}
+                      onChange={(e) => handleFirebaseChange('vapid_key', e.target.value)}
+                      placeholder="BK..."
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Service Account Credentials
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".json"
+                      className="hidden"
+                      onChange={handleCredentialsUpload}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload JSON
+                    </button>
+                    {firebaseData.credentials_uploaded && (
+                      <span className="text-sm text-green-600 flex items-center gap-1">
+                        <Check className="w-4 h-4" />
+                        Credentials uploaded
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Download from Firebase Console → Project Settings → Service Accounts
+                  </p>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => updateFirebaseMutation.mutate(firebaseData)}
+                    disabled={updateFirebaseMutation.isPending}
+                  >
+                    {updateFirebaseMutation.isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    Save Firebase Settings
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => testFirebaseMutation.mutate()}
+                    disabled={testFirebaseMutation.isPending || !firebaseData.credentials_uploaded}
+                  >
+                    {testFirebaseMutation.isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4" />
+                    )}
+                    Test Connection
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => syncFirebaseMutation.mutate()}
+                    disabled={syncFirebaseMutation.isPending || !firebaseData.credentials_uploaded}
+                  >
+                    {syncFirebaseMutation.isPending ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    Sync Festival
+                  </button>
+                </div>
+
+                {firebaseData.credentials_uploaded && (
+                  <div className="pt-4 border-t">
+                    <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                      <Bell className="w-4 h-4" />
+                      Send Push Notification
+                    </h3>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="Notification title"
+                        value={notificationForm.title}
+                        onChange={(e) => setNotificationForm((prev) => ({ ...prev, title: e.target.value }))}
+                      />
+                      <textarea
+                        className="input"
+                        rows={2}
+                        placeholder="Notification message"
+                        value={notificationForm.body}
+                        onChange={(e) => setNotificationForm((prev) => ({ ...prev, body: e.target.value }))}
+                      />
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="Link (optional)"
+                        value={notificationForm.link}
+                        onChange={(e) => setNotificationForm((prev) => ({ ...prev, link: e.target.value }))}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => sendNotificationMutation.mutate()}
+                        disabled={
+                          sendNotificationMutation.isPending ||
+                          !notificationForm.title ||
+                          !notificationForm.body
+                        }
+                      >
+                        {sendNotificationMutation.isPending ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        Send to All Subscribers
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

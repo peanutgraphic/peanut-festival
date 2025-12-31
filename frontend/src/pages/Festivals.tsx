@@ -94,14 +94,15 @@ export function Festivals() {
       </div>
 
       <div className="card overflow-hidden">
-        <table className="table">
+        <div className="overflow-x-auto">
+          <table className="table w-full min-w-[600px]">
           <thead>
             <tr>
               <th>Name</th>
-              <th>Dates</th>
+              <th className="whitespace-nowrap">Dates</th>
               <th>Location</th>
-              <th>Status</th>
-              <th className="w-24">Actions</th>
+              <th className="whitespace-nowrap">Status</th>
+              <th className="whitespace-nowrap text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -135,8 +136,8 @@ export function Festivals() {
                       {festival.status}
                     </span>
                   </td>
-                  <td>
-                    <div className="flex items-center gap-1">
+                  <td className="text-right">
+                    <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => {
                           setEditingFestival(festival);
@@ -167,7 +168,8 @@ export function Festivals() {
               ))
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
       {/* Festival Form Modal */}

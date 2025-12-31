@@ -1,0 +1,260 @@
+/**
+ * Winner Announcement Styles
+ * Peanut Festival v1.1.0
+ */
+
+.pf-winner-widget {
+    --pf-gold: #fbbf24;
+    --pf-gold-dark: #d97706;
+    --pf-gray-900: #111827;
+
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    position: relative;
+    min-height: 400px;
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+    border-radius: 1.5rem;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+}
+
+.pf-winner-container {
+    text-align: center;
+    z-index: 10;
+    animation: pf-winner-entrance 1s ease-out;
+}
+
+@keyframes pf-winner-entrance {
+    0% {
+        opacity: 0;
+        transform: scale(0.8) translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Crown */
+.pf-winner-crown {
+    margin-bottom: 1rem;
+}
+
+.pf-crown-icon {
+    font-size: 4rem;
+    filter: drop-shadow(0 0 20px rgba(251, 191, 36, 0.5));
+    animation: pf-crown-float 3s ease-in-out infinite;
+}
+
+@keyframes pf-crown-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+/* Announcement */
+.pf-winner-announcement {
+    margin-bottom: 1.5rem;
+}
+
+.pf-winner-label {
+    font-size: 1.125rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.pf-winner-name {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: white;
+    margin: 0;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    animation: pf-name-glow 2s ease-in-out infinite;
+}
+
+@keyframes pf-name-glow {
+    0%, 100% { text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); }
+    50% { text-shadow: 0 4px 30px rgba(251, 191, 36, 0.4); }
+}
+
+/* Photo */
+.pf-winner-photo-frame {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+}
+
+.pf-winner-photo {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid var(--pf-gold);
+    box-shadow: 0 0 40px rgba(251, 191, 36, 0.4);
+}
+
+.pf-winner-photo-glow {
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.3) 0%, transparent 70%);
+    animation: pf-photo-pulse 2s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes pf-photo-pulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+}
+
+/* Bio */
+.pf-winner-bio {
+    max-width: 400px;
+    margin: 0 auto 1.5rem;
+}
+
+.pf-winner-bio p {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Trophy */
+.pf-winner-trophy {
+    margin-bottom: 1.5rem;
+}
+
+.pf-winner-trophy .pf-trophy-icon {
+    font-size: 3rem;
+    animation: pf-trophy-shine 2s ease-in-out infinite;
+}
+
+@keyframes pf-trophy-shine {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.3); }
+}
+
+/* Social links */
+.pf-winner-social {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.pf-social-link {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    text-decoration: none;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pf-social-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+/* Meta */
+.pf-winner-meta {
+    margin-top: 1rem;
+}
+
+.pf-winner-source {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* Particles */
+.pf-winner-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.pf-winner-particles::before,
+.pf-winner-particles::after {
+    content: '';
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.2) 0%, transparent 70%);
+    animation: pf-particle-float 6s ease-in-out infinite;
+}
+
+.pf-winner-particles::before {
+    top: 10%;
+    left: 10%;
+    animation-delay: 0s;
+}
+
+.pf-winner-particles::after {
+    bottom: 10%;
+    right: 10%;
+    animation-delay: 3s;
+}
+
+@keyframes pf-particle-float {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+    50% { transform: translate(20px, -20px) scale(1.2); opacity: 0.6; }
+}
+
+/* Confetti canvas */
+.pf-confetti-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Pending state */
+.pf-winner-pending {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    text-align: center;
+    padding: 3rem;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    border-radius: 1rem;
+    color: #6b7280;
+    font-size: 1.125rem;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .pf-winner-widget {
+        padding: 2rem 1.5rem;
+        min-height: 350px;
+    }
+
+    .pf-crown-icon {
+        font-size: 3rem;
+    }
+
+    .pf-winner-name {
+        font-size: 1.75rem;
+    }
+
+    .pf-winner-photo {
+        width: 120px;
+        height: 120px;
+    }
+
+    .pf-winner-social {
+        flex-wrap: wrap;
+    }
+}

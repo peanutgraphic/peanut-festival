@@ -95,6 +95,20 @@ class Peanut_Festival_REST_API {
             'callback' => [$this, 'handle_webhook'],
             'permission_callback' => '__return_true',
         ]);
+
+        // Leaderboard
+        register_rest_route(self::NAMESPACE, '/leaderboard', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_leaderboard'],
+            'permission_callback' => '__return_true',
+        ]);
+
+        // Match votes (for live vote display)
+        register_rest_route(self::NAMESPACE, '/matches/(?P<id>\d+)/votes', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_match_votes'],
+            'permission_callback' => '__return_true',
+        ]);
     }
 
     public function get_voting_status(\WP_REST_Request $request): \WP_REST_Response {
@@ -514,5 +528,118 @@ class Peanut_Festival_REST_API {
         Peanut_Festival_Payments::handle_webhook();
         // The handle_webhook method calls exit, so this won't be reached
         return new \WP_REST_Response(['received' => true]);
+    }
+
+    /**
+     * Get performer leaderboard for a festival
+     */
+    public function get_leaderboard(\WP_REST_Request $request): \WP_REST_Response {
+        $festival_id = $request->get_param('festival_id');
+        $limit = min((int) ($request->get_param('limit') ?? 10), 50);
+
+        if (!$festival_id) {
+            $festival_id = Peanut_Festival_Settings::get_active_festival_id();
+        }
+
+        if (!$festival_id) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'No active festival',
+            ], 400);
+        }
+
+        global $wpdb;
+        $performers_table = Peanut_Festival_Database::get_table_name('performers');
+        $votes_table = Peanut_Festival_Database::get_table_name('votes');
+
+        // Get performers with their vote scores
+        $sql = $wpdb->prepare(
+            "SELECT
+                p.id,
+                p.name,
+                p.photo_url,
+                COALESCE(SUM(
+                    CASE v.ranking
+                        WHEN 1 THEN 5
+                        WHEN 2 THEN 3
+                        WHEN 3 THEN 1
+                        ELSE 0
+                    END
+                ), 0) as score
+            FROM $performers_table p
+            LEFT JOIN $votes_table v ON p.id = v.performer_id
+            WHERE p.festival_id = %d
+            AND p.status = 'accepted'
+            GROUP BY p.id
+            ORDER BY score DESC, p.name ASC
+            LIMIT %d",
+            $festival_id,
+            $limit
+        );
+
+        $performers = $wpdb->get_results($sql);
+
+        return new \WP_REST_Response([
+            'success' => true,
+            'performers' => array_map(function($p) {
+                return [
+                    'id' => (int) $p->id,
+                    'name' => $p->name,
+                    'photo_url' => $p->photo_url,
+                    'score' => (int) $p->score,
+                ];
+            }, $performers),
+        ]);
+    }
+
+    /**
+     * Get live vote counts for a match
+     */
+    public function get_match_votes(\WP_REST_Request $request): \WP_REST_Response {
+        $match_id = (int) $request->get_param('id');
+
+        $match = Peanut_Festival_Competitions::get_match($match_id);
+
+        if (!$match) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Match not found',
+            ], 404);
+        }
+
+        $is_open = $match->status === 'voting';
+        $time_remaining = null;
+
+        if ($is_open && !empty($match->voting_ends_at)) {
+            $ends_at = strtotime($match->voting_ends_at);
+            $time_remaining = max(0, $ends_at - time());
+        }
+
+        $performers = [];
+        if ($match->performer_1_id) {
+            $p1 = Peanut_Festival_Performers::get_by_id($match->performer_1_id);
+            $performers[] = [
+                'id' => (int) $match->performer_1_id,
+                'name' => $p1 ? $p1->name : 'Unknown',
+                'vote_count' => (int) ($match->votes_performer_1 ?? 0),
+            ];
+        }
+        if ($match->performer_2_id) {
+            $p2 = Peanut_Festival_Performers::get_by_id($match->performer_2_id);
+            $performers[] = [
+                'id' => (int) $match->performer_2_id,
+                'name' => $p2 ? $p2->name : 'Unknown',
+                'vote_count' => (int) ($match->votes_performer_2 ?? 0),
+            ];
+        }
+
+        return new \WP_REST_Response([
+            'success' => true,
+            'data' => [
+                'is_open' => $is_open,
+                'time_remaining' => $time_remaining,
+                'performers' => $performers,
+            ],
+        ]);
     }
 }

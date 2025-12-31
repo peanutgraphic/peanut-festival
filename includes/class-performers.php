@@ -252,7 +252,17 @@ class Peanut_Festival_Performers {
      * @return int|false Number of rows updated on success, false on failure.
      */
     public static function accept(int $id, string $notes = ''): int|false {
-        return self::review($id, 'accepted', $notes);
+        $result = self::review($id, 'accepted', $notes);
+
+        if ($result !== false) {
+            $performer = self::get_by_id($id);
+            if ($performer) {
+                // Fire hook for Booker integration
+                Peanut_Festival_Booker_Integration::fire_performer_accepted($id, $performer);
+            }
+        }
+
+        return $result;
     }
 
     /**

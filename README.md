@@ -17,10 +17,24 @@ A comprehensive WordPress plugin for managing community festivals, including per
 - **Analytics** - Financial overview, attendance stats, and exportable reports
 - **Flyer Generator** - Canvas-based promotional flyer creation
 
+### Competition System
+- **Tournament Brackets** - Single/double elimination and round robin
+- **Head-to-Head Voting** - Live voting for bracket matches
+- **Automatic Advancement** - Winners advance through bracket rounds
+- **Live Vote Display** - Real-time vote counters with multiple styles
+
+### Real-Time Features (Firebase)
+- **Live Updates** - Real-time vote counts and leaderboards via Firebase
+- **Push Notifications** - FCM notifications for voting, performances, winners
+- **PWA Support** - Installable web app with offline schedule caching
+- **Background Sync** - Vote submission when back online
+
 ### Integrations
 - **Stripe** - Payment processing for tickets and vendor fees
 - **Eventbrite** - Bi-directional event synchronization
 - **Mailchimp** - Audience sync and newsletter campaigns
+- **Peanut Booker** - Performer profile sync and calendar integration
+- **Firebase** - Real-time database and push notifications
 
 ## Requirements
 
@@ -54,8 +68,29 @@ A comprehensive WordPress plugin for managing community festivals, including per
 | `[pf_vendor_apply]` | Vendor application form |
 | `[pf_flyer]` | Interactive flyer generator |
 | `[pf_checkin]` | Staff QR code check-in interface |
+| `[pf_bracket]` | Tournament bracket display (live updating) |
+| `[pf_live_votes]` | Real-time vote counter (bar, number, or pie style) |
+| `[pf_leaderboard]` | Live performer leaderboard with podium |
+| `[pf_winner]` | Animated winner announcement with confetti |
 
 All shortcodes accept a `festival_id` attribute to specify which festival to display.
+
+### Live Display Shortcodes
+
+```html
+<!-- Tournament bracket with Firebase real-time updates -->
+[pf_bracket competition_id="1" theme="dark"]
+
+<!-- Live vote counter with different display styles -->
+[pf_live_votes show_id="5" style="bar" show_percentage="true"]
+[pf_live_votes show_id="5" style="pie" animated="true"]
+
+<!-- Performer leaderboard -->
+[pf_leaderboard festival_id="1" limit="10" show_photos="true"]
+
+<!-- Winner announcement (auto-reveals when voting closes) -->
+[pf_winner show_id="5" confetti="true"]
+```
 
 ## User Roles
 
@@ -79,7 +114,7 @@ The plugin creates custom roles with specific capabilities:
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/peanut-festival.git
+git clone https://github.com/peanutgraphic/peanut-festival.git
 cd peanut-festival
 
 # Install PHP dependencies
@@ -146,6 +181,10 @@ GET  /wp-json/peanut-festival/v1/events
 POST /wp-json/peanut-festival/v1/vote
 POST /wp-json/peanut-festival/v1/apply/performer
 GET  /wp-json/peanut-festival/v1/admin/shows
+GET  /wp-json/peanut-festival/v1/leaderboard
+GET  /wp-json/peanut-festival/v1/firebase/config
+GET  /wp-json/peanut-festival/v1/competitions/{id}/bracket
+POST /wp-json/peanut-festival/v1/matches/{id}/vote
 ```
 
 ## Architecture
@@ -207,4 +246,4 @@ Proprietary - Peanut Graphic
 
 ## Support
 
-For issues and feature requests, please [open an issue](https://github.com/YOUR_USERNAME/peanut-festival/issues).
+For issues and feature requests, please [open an issue](https://github.com/peanutgraphic/peanut-festival/issues).

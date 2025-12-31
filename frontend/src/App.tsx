@@ -9,6 +9,7 @@ import { Shows } from '@/pages/Shows';
 import { Performers } from '@/pages/Performers';
 import { Venues } from '@/pages/Venues';
 import { VotingAdmin } from '@/pages/VotingAdmin';
+import { Competitions } from '@/pages/Competitions';
 import { Volunteers } from '@/pages/Volunteers';
 import { Vendors } from '@/pages/Vendors';
 import { Sponsors } from '@/pages/Sponsors';
@@ -30,6 +31,7 @@ function App() {
         <Route path="/performers" element={<Performers />} />
         <Route path="/venues" element={<Venues />} />
         <Route path="/voting" element={<VotingAdmin />} />
+        <Route path="/competitions" element={<Competitions />} />
         <Route path="/volunteers" element={<Volunteers />} />
         <Route path="/vendors" element={<Vendors />} />
         <Route path="/sponsors" element={<Sponsors />} />
