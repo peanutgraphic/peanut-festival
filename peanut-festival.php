@@ -3,7 +3,7 @@
  * Plugin Name: Peanut Festival
  * Plugin URI: https://peanut.graphics/festival
  * Description: Comprehensive festival organization platform for producers, performers, venues, volunteers, vendors, sponsors, and attendees.
- * Version: 1.0.0
+ * Version: 1.2.10
  * Author: Peanut Graphics
  * Author URI: https://peanut.graphics
  * License: GPL v2 or later
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('PEANUT_FESTIVAL_VERSION', '1.0.0');
+define('PEANUT_FESTIVAL_VERSION', '1.2.10');
 define('PEANUT_FESTIVAL_PATH', plugin_dir_path(__FILE__));
 define('PEANUT_FESTIVAL_URL', plugin_dir_url(__FILE__));
 define('PEANUT_FESTIVAL_BASENAME', plugin_basename(__FILE__));
@@ -73,9 +73,18 @@ final class Peanut_Festival {
         require_once PEANUT_FESTIVAL_PATH . 'includes/class-mailchimp.php';
         require_once PEANUT_FESTIVAL_PATH . 'includes/class-notifications.php';
         require_once PEANUT_FESTIVAL_PATH . 'includes/class-payments.php';
+        require_once PEANUT_FESTIVAL_PATH . 'includes/class-booker-integration.php';
+        require_once PEANUT_FESTIVAL_PATH . 'includes/class-competitions.php';
+
+        // Firebase real-time integration (Phase 3)
+        require_once PEANUT_FESTIVAL_PATH . 'includes/class-firebase.php';
+        require_once PEANUT_FESTIVAL_PATH . 'includes/class-realtime-sync.php';
 
         // Security classes
         require_once PEANUT_FESTIVAL_PATH . 'includes/class-rate-limiter.php';
+
+        // Caching
+        require_once PEANUT_FESTIVAL_PATH . 'includes/class-cache.php';
 
         // Logging
         require_once PEANUT_FESTIVAL_PATH . 'includes/class-logger.php';
@@ -124,6 +133,9 @@ final class Peanut_Festival {
 
             $admin_api = new Peanut_Festival_REST_API_Admin();
             $admin_api->register_routes();
+
+            // Phase 3: Firebase REST routes (always register config endpoint)
+            Peanut_Festival_Firebase::register_routes();
         });
     }
 
@@ -152,12 +164,31 @@ final class Peanut_Festival {
         Peanut_Festival_Flyer_Generator::get_instance();
         Peanut_Festival_Eventbrite::get_instance();
         Peanut_Festival_Notifications::get_instance();
+        Peanut_Festival_Booker_Integration::get_instance();
+        Peanut_Festival_Competitions::get_instance();
+
+        // Phase 3: Firebase real-time sync
+        if (Peanut_Festival_Firebase::is_enabled()) {
+            Peanut_Festival_Firebase::get_instance();
+            Peanut_Festival_Realtime_Sync::get_instance();
+        }
     }
 }
 
 // Activation/Deactivation hooks
 register_activation_hook(__FILE__, ['Peanut_Festival_Activator', 'activate']);
 register_deactivation_hook(__FILE__, ['Peanut_Festival_Deactivator', 'deactivate']);
+
+// Add custom cron intervals
+add_filter('cron_schedules', function($schedules) {
+    if (!isset($schedules['five_minutes'])) {
+        $schedules['five_minutes'] = [
+            'interval' => 300,
+            'display' => __('Every Five Minutes', 'peanut-festival'),
+        ];
+    }
+    return $schedules;
+});
 
 // Initialize plugin
 function peanut_festival_init(): Peanut_Festival {

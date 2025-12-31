@@ -5,6 +5,140 @@ All notable changes to the Peanut Festival plugin will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.10] - 2024-12-30
+
+### Fixed
+- Switched from fullscreen mode to embedded WordPress admin mode - WordPress sidebar navigation now visible
+- Simplified Layout component with proper flex layout (flex-shrink-0 sidebar, flex-1 content)
+- Reduced sidebar width from 64 to 56 for better fit within WordPress admin
+- Fixed stat cards and tables displaying correctly within WordPress admin content area
+
+## [1.2.6] - 2024-12-30
+
+### Fixed
+- Dashboard stat cards not displaying in 4-column grid - added CSS isolation for Tailwind grid classes
+- Tables cut off on right side - added w-full to Layout root and overflow handling
+- Complete CSS isolation for Tailwind flex, grid, width, and overflow utilities
+- Added !important overrides for responsive breakpoints (md:grid-cols-2, lg:grid-cols-4)
+
+## [1.2.5] - 2024-12-30
+
+### Fixed
+- Admin layout conflict with WordPress admin menu - now uses fullscreen mode like Peanut Suite
+- Added proper fullscreen container with position:fixed wrapper
+- Hide WordPress admin chrome (toolbar, menu, footer) when viewing Festival admin
+- CSS isolation for Tailwind classes to prevent WordPress style conflicts
+- Proper button, input, and link style resets inside the React app
+
+## [1.2.4] - 2024-12-30
+
+### Fixed
+- Admin table columns (Status, Actions) cut off on Festivals, Performers, and Volunteers pages
+- Added proper overflow-x-auto wrapper and min-width constraints to tables for horizontal scrolling
+
+## [1.2.0] - 2024-12-30
+
+### Added
+
+#### Firebase Real-Time Integration
+- Firebase Realtime Database integration for live updates
+- OAuth2 JWT token generation for Firebase authentication (no Composer dependencies)
+- Real-time sync for votes, matches, shows, and performers
+- Debounced and batched sync operations for efficiency
+- WordPress hooks integration for automatic data sync
+
+#### Push Notifications (Firebase Cloud Messaging)
+- Push notification support via FCM
+- Topic-based subscription for festivals
+- Notification types: voting starting, performer on stage, winner announced
+- In-app notification toasts for foreground messages
+- Service worker for background push handling
+
+#### Progressive Web App (PWA) Support
+- Web app manifest for installable PWA
+- Service worker with offline caching strategy
+- Static asset caching for CSS, JS, and images
+- API response caching for offline schedule viewing
+- Background sync for vote submissions when offline
+- PWA shortcuts for schedule and voting
+
+#### Admin Firebase Settings
+- Firebase configuration UI in Settings page
+- Service account credentials upload
+- Test connection functionality
+- Manual festival sync to Firebase
+- Send push notifications from admin
+
+#### Live Voting Display Shortcodes
+- `[pf_bracket]` - Interactive tournament bracket display with live updates
+- `[pf_live_votes]` - Real-time vote counter with bar, number, and pie chart styles
+- `[pf_leaderboard]` - Live performer leaderboard with podium display
+- `[pf_winner]` - Animated winner announcement with confetti celebration
+
+#### Vote Verification System
+- Rate limiting (configurable votes per minute per IP)
+- Email verification mode with one-time codes
+- One-vote-per-email enforcement option
+- Device fingerprinting for fraud prevention
+- Comprehensive vote validation API
+
+#### Public API Endpoints
+- `/peanut-festival/v1/leaderboard` - Get performer rankings
+- `/peanut-festival/v1/matches/{id}/votes` - Get live match vote counts
+
+#### Frontend Assets
+- Bracket display CSS with responsive design
+- Live votes CSS with multiple visualization styles
+- Leaderboard CSS with animated podium
+- Winner announcement CSS with particle effects
+- JavaScript for all live-updating components
+
+## [1.1.0] - 2024-12-30
+
+### Added
+
+#### Peanut Booker Integration
+- Bidirectional performer sync between Festival and Booker
+- Automatic performer linking by email or WordPress user ID
+- Booker achievement badges displayed on Festival profiles
+- Booker ratings and completed bookings shown on performer cards
+- Calendar conflict detection with Booker availability
+- REST API endpoints for managing performer links
+- Settings page for integration configuration
+
+#### Competition/Bracket System
+- Tournament bracket support (single elimination, double elimination, round robin)
+- Head-to-head voting for bracket matches
+- Automatic bracket generation with proper seeding
+- Bye handling for odd participant counts
+- Match scheduling with voting windows
+- Real-time vote counting
+- Winner advancement through bracket rounds
+- Round robin standings calculation
+- REST API for competition management
+- Cron job for auto-completing expired matches
+
+#### Hooks for External Integration
+- `peanut_festival_performer_accepted` - Fires when performer is accepted
+- `peanut_festival_show_completed` - Fires when show completes
+- `peanut_festival_vote_winner` - Fires when voting winner declared
+- `peanut_festival_performer_rating` - Fires when performer receives rating
+- `peanut_festival_show_scheduled` - Fires when performers assigned to show
+
+#### Show Management Enhancements
+- `complete()` method to mark shows as completed
+- `schedule_performers()` for batch performer assignment
+- `has_schedule_conflict()` for availability checking across platforms
+
+### Changed
+- Database schema version bumped to 1.3.0
+- Plugin version bumped to 1.1.0
+
+### Database Tables Added
+- `pf_booker_links` - Links between Festival and Booker performers
+- `pf_competitions` - Tournament/competition definitions
+- `pf_competition_matches` - Individual bracket matches
+
 ## [1.0.0] - 2024-12-27
 
 ### Added
@@ -84,4 +218,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `pf_settings` - Plugin settings
 - `pf_job_queue` - Background job queue
 
-[1.0.0]: https://github.com/YOUR_USERNAME/peanut-festival/releases/tag/v1.0.0
+[1.2.0]: https://github.com/peanutgraphic/peanut-festival/releases/tag/v1.2.0
+[1.1.0]: https://github.com/peanutgraphic/peanut-festival/releases/tag/v1.1.0
+[1.0.0]: https://github.com/peanutgraphic/peanut-festival/releases/tag/v1.0.0
