@@ -253,6 +253,166 @@ if (!class_exists('WP_REST_Response')) {
     }
 }
 
+// Mock WP_REST_Request class
+if (!class_exists('WP_REST_Request')) {
+    class WP_REST_Request {
+        private $params = [];
+        private $json_params = [];
+        private $method = 'GET';
+
+        public function __construct($method = 'GET', $route = '') {
+            $this->method = $method;
+        }
+
+        public function set_param($key, $value) {
+            $this->params[$key] = $value;
+        }
+
+        public function get_param($key) {
+            return $this->params[$key] ?? null;
+        }
+
+        public function get_params() {
+            return $this->params;
+        }
+
+        public function set_json_params($params) {
+            $this->json_params = $params;
+        }
+
+        public function get_json_params() {
+            return $this->json_params;
+        }
+
+        public function get_method() {
+            return $this->method;
+        }
+    }
+}
+
+// Mock wp_parse_args
+if (!function_exists('wp_parse_args')) {
+    function wp_parse_args($args, $defaults = []) {
+        if (is_object($args)) {
+            $args = get_object_vars($args);
+        } elseif (is_string($args)) {
+            parse_str($args, $args);
+        }
+        return array_merge($defaults, $args);
+    }
+}
+
+// Mock sanitize_title
+if (!function_exists('sanitize_title')) {
+    function sanitize_title($title) {
+        $title = strtolower($title);
+        $title = preg_replace('/[^a-z0-9-]/', '-', $title);
+        $title = preg_replace('/-+/', '-', $title);
+        return trim($title, '-');
+    }
+}
+
+// Mock wp_kses_post
+if (!function_exists('wp_kses_post')) {
+    function wp_kses_post($string) {
+        return strip_tags($string, '<a><p><br><strong><em><ul><ol><li><h1><h2><h3><h4><h5><h6><blockquote><code><pre>');
+    }
+}
+
+// Mock wp_upload_dir
+if (!function_exists('wp_upload_dir')) {
+    function wp_upload_dir() {
+        return [
+            'basedir' => '/tmp/uploads',
+            'baseurl' => 'http://example.com/wp-content/uploads',
+            'path' => '/tmp/uploads/' . date('Y/m'),
+            'url' => 'http://example.com/wp-content/uploads/' . date('Y/m'),
+            'error' => false,
+        ];
+    }
+}
+
+// Mock wp_mkdir_p
+if (!function_exists('wp_mkdir_p')) {
+    function wp_mkdir_p($target) {
+        if (file_exists($target)) {
+            return true;
+        }
+        return @mkdir($target, 0755, true);
+    }
+}
+
+// Mock register_rest_route (for loading API classes)
+if (!function_exists('register_rest_route')) {
+    function register_rest_route($namespace, $route, $args) {
+        // No-op for testing
+    }
+}
+
+// Mock rest_url
+if (!function_exists('rest_url')) {
+    function rest_url($path = '') {
+        return 'http://example.com/wp-json/' . ltrim($path, '/');
+    }
+}
+
+// Mock $wpdb global
+global $wpdb;
+if (!isset($wpdb)) {
+    $wpdb = new class {
+        public $prefix = 'wp_';
+        public $last_error = '';
+        public $insert_id = 0;
+        private $mock_results = [];
+
+        public function prepare($query, ...$args) {
+            return vsprintf(str_replace(['%d', '%s'], ['%d', '%s'], $query), $args);
+        }
+
+        public function query($query) {
+            return true;
+        }
+
+        public function get_var($query) {
+            return 0;
+        }
+
+        public function get_row($query, $output = OBJECT) {
+            return null;
+        }
+
+        public function get_results($query, $output = OBJECT) {
+            return [];
+        }
+
+        public function insert($table, $data, $format = null) {
+            $this->insert_id = rand(1, 10000);
+            return 1;
+        }
+
+        public function update($table, $data, $where, $format = null, $where_format = null) {
+            return 1;
+        }
+
+        public function delete($table, $where, $where_format = null) {
+            return 1;
+        }
+
+        public function set_mock_results($results) {
+            $this->mock_results = $results;
+        }
+    };
+}
+
+// Define OBJECT constant if not exists
+if (!defined('OBJECT')) {
+    define('OBJECT', 'OBJECT');
+}
+
+if (!defined('ARRAY_A')) {
+    define('ARRAY_A', 'ARRAY_A');
+}
+
 // Autoload classes
 spl_autoload_register(function ($class) {
     $prefix = 'Peanut_Festival_';
