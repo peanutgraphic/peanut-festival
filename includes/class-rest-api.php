@@ -14,6 +14,88 @@ class Peanut_Festival_REST_API {
     private const NAMESPACE = 'peanut-festival/v1';
 
     /**
+     * Valid date format periods for SQL queries (whitelist for security)
+     */
+    private const VALID_PERIODS = [
+        'daily' => '%Y-%m-%d',
+        'weekly' => '%Y-%u',
+        'monthly' => '%Y-%m',
+    ];
+
+    /**
+     * Verify nonce for state-changing requests (CSRF protection)
+     *
+     * For public forms, we use a combination of:
+     * - Rate limiting (already implemented)
+     * - Honeypot fields (frontend)
+     * - Token validation for votes
+     *
+     * For authenticated requests, we verify the WP REST nonce.
+     *
+     * @param \WP_REST_Request $request The request object
+     * @param string $action The action name for context
+     * @return \WP_REST_Response|null Error response if verification fails, null if OK
+     */
+    private function verify_request_security(\WP_REST_Request $request, string $action = 'submit'): ?\WP_REST_Response {
+        // Check for honeypot field (bot detection)
+        $honeypot = $request->get_param('website_url_confirm');
+        if (!empty($honeypot)) {
+            // Bot detected - return success to not reveal detection
+            Peanut_Festival_Logger::warning('Bot detected via honeypot', [
+                'action' => $action,
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+            ]);
+            return new \WP_REST_Response([
+                'success' => true,
+                'message' => 'Submitted successfully',
+            ]);
+        }
+
+        // For logged-in users, verify nonce
+        if (is_user_logged_in()) {
+            $nonce = $request->get_header('X-WP-Nonce');
+            if ($nonce && !wp_verify_nonce($nonce, 'wp_rest')) {
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'code' => 'invalid_nonce',
+                    'message' => 'Security verification failed. Please refresh and try again.',
+                ], 403);
+            }
+        }
+
+        // Verify Origin/Referer header matches site URL (basic CSRF protection)
+        $origin = $request->get_header('Origin');
+        $referer = $request->get_header('Referer');
+        $site_url = get_site_url();
+        $site_host = wp_parse_url($site_url, PHP_URL_HOST);
+
+        $request_host = null;
+        if ($origin) {
+            $request_host = wp_parse_url($origin, PHP_URL_HOST);
+        } elseif ($referer) {
+            $request_host = wp_parse_url($referer, PHP_URL_HOST);
+        }
+
+        // Allow requests without Origin/Referer (some browsers/configs don't send them)
+        // but block if they're present and don't match
+        if ($request_host && $request_host !== $site_host) {
+            Peanut_Festival_Logger::warning('Cross-origin request blocked', [
+                'action' => $action,
+                'origin' => $origin,
+                'referer' => $referer,
+                'expected_host' => $site_host,
+            ]);
+            return new \WP_REST_Response([
+                'success' => false,
+                'code' => 'cross_origin_blocked',
+                'message' => 'Cross-origin requests are not allowed.',
+            ], 403);
+        }
+
+        return null;
+    }
+
+    /**
      * Register all public REST routes
      */
     public function register_routes(): void {
@@ -143,6 +225,12 @@ class Peanut_Festival_REST_API {
     }
 
     public function submit_vote(\WP_REST_Request $request): \WP_REST_Response {
+        // Security verification (CSRF protection)
+        $security_error = $this->verify_request_security($request, 'vote');
+        if ($security_error !== null) {
+            return $security_error;
+        }
+
         // Rate limiting: 10 votes per minute
         $rate_limit = Peanut_Festival_Rate_Limiter::enforce('vote');
         if ($rate_limit !== null) {
@@ -167,10 +255,36 @@ class Peanut_Festival_REST_API {
         $ip_hash = Peanut_Festival_Voting::hash_ip($_SERVER['REMOTE_ADDR'] ?? '');
         $ua_hash = Peanut_Festival_Voting::hash_ua($_SERVER['HTTP_USER_AGENT'] ?? '');
 
+        // Generate device fingerprint if provided (enhanced fraud detection)
+        $fingerprint_data = $request->get_param('fingerprint');
+        $fingerprint_hash = '';
+        if (is_array($fingerprint_data)) {
+            $fingerprint_hash = Peanut_Festival_Voting::generate_device_fingerprint($fingerprint_data);
+        }
+
         // Check if already voted (skip for admins)
         if (!current_user_can('manage_options')) {
             if (Peanut_Festival_Voting::has_voted($show_slug, $group_name, $token, $ip_hash)) {
                 return Peanut_Festival_REST_Response::error('already_voted');
+            }
+
+            // Fraud detection - check for suspicious patterns
+            $fraud_check = Peanut_Festival_Voting::detect_vote_fraud($show_slug, $ip_hash, $fingerprint_hash);
+            if ($fraud_check['is_suspicious']) {
+                Peanut_Festival_Voting::log_suspicious_vote([
+                    'show_slug' => $show_slug,
+                    'group_name' => $group_name,
+                    'ip_hash' => $ip_hash,
+                    'token' => $token,
+                ], $fraud_check);
+
+                // Block if score is very high (likely automated)
+                if ($fraud_check['score'] >= 80) {
+                    return Peanut_Festival_REST_Response::error(
+                        'vote_blocked',
+                        'Your vote could not be processed. Please try again later.'
+                    );
+                }
             }
         }
 
@@ -184,6 +298,7 @@ class Peanut_Festival_REST_API {
                 'ip_hash' => $ip_hash,
                 'ua_hash' => $ua_hash,
                 'token' => $token,
+                'fingerprint_hash' => $fingerprint_hash,
             ]);
         }
 
@@ -205,10 +320,24 @@ class Peanut_Festival_REST_API {
     }
 
     public function submit_performer_application(\WP_REST_Request $request): \WP_REST_Response {
+        // Security verification (CSRF protection)
+        $security_error = $this->verify_request_security($request, 'performer_application');
+        if ($security_error !== null) {
+            return $security_error;
+        }
+
         // Rate limiting: 5 applications per 5 minutes
         $rate_limit = Peanut_Festival_Rate_Limiter::enforce('application');
         if ($rate_limit !== null) {
             return $rate_limit;
+        }
+
+        // Sanitize social_links array to prevent XSS
+        $social_links = $request->get_param('social_links');
+        if (is_array($social_links)) {
+            $social_links = array_map('esc_url_raw', $social_links);
+        } else {
+            $social_links = [];
         }
 
         $data = [
@@ -220,7 +349,7 @@ class Peanut_Festival_REST_API {
             'website' => esc_url_raw($request->get_param('website')),
             'performance_type' => sanitize_text_field($request->get_param('performance_type')),
             'technical_requirements' => sanitize_textarea_field($request->get_param('technical_requirements')),
-            'social_links' => $request->get_param('social_links'),
+            'social_links' => $social_links,
             'application_status' => 'pending',
         ];
 
@@ -261,10 +390,31 @@ class Peanut_Festival_REST_API {
     }
 
     public function submit_volunteer_signup(\WP_REST_Request $request): \WP_REST_Response {
+        // Security verification (CSRF protection)
+        $security_error = $this->verify_request_security($request, 'volunteer_signup');
+        if ($security_error !== null) {
+            return $security_error;
+        }
+
         // Rate limiting: 5 applications per 5 minutes
         $rate_limit = Peanut_Festival_Rate_Limiter::enforce('application');
         if ($rate_limit !== null) {
             return $rate_limit;
+        }
+
+        // Sanitize array fields
+        $skills = $request->get_param('skills');
+        if (is_array($skills)) {
+            $skills = array_map('sanitize_text_field', $skills);
+        } else {
+            $skills = [];
+        }
+
+        $availability = $request->get_param('availability');
+        if (is_array($availability)) {
+            $availability = array_map('sanitize_text_field', $availability);
+        } else {
+            $availability = [];
         }
 
         $data = [
@@ -274,8 +424,8 @@ class Peanut_Festival_REST_API {
             'phone' => sanitize_text_field($request->get_param('phone')),
             'emergency_contact' => sanitize_text_field($request->get_param('emergency_contact')),
             'emergency_phone' => sanitize_text_field($request->get_param('emergency_phone')),
-            'skills' => $request->get_param('skills'),
-            'availability' => $request->get_param('availability'),
+            'skills' => $skills,
+            'availability' => $availability,
             'shirt_size' => sanitize_text_field($request->get_param('shirt_size')),
             'dietary_restrictions' => sanitize_textarea_field($request->get_param('dietary_restrictions')),
             'status' => 'applied',
@@ -361,6 +511,12 @@ class Peanut_Festival_REST_API {
     }
 
     public function submit_vendor_application(\WP_REST_Request $request): \WP_REST_Response {
+        // Security verification (CSRF protection)
+        $security_error = $this->verify_request_security($request, 'vendor_application');
+        if ($security_error !== null) {
+            return $security_error;
+        }
+
         // Rate limiting: 5 applications per 5 minutes
         $rate_limit = Peanut_Festival_Rate_Limiter::enforce('application');
         if ($rate_limit !== null) {
@@ -427,6 +583,12 @@ class Peanut_Festival_REST_API {
     }
 
     public function create_payment_intent(\WP_REST_Request $request): \WP_REST_Response {
+        // Security verification (CSRF protection)
+        $security_error = $this->verify_request_security($request, 'payment_intent');
+        if ($security_error !== null) {
+            return $security_error;
+        }
+
         // Rate limiting: 10 payment attempts per minute
         $rate_limit = Peanut_Festival_Rate_Limiter::enforce('payment');
         if ($rate_limit !== null) {
@@ -493,6 +655,12 @@ class Peanut_Festival_REST_API {
     }
 
     public function confirm_payment(\WP_REST_Request $request): \WP_REST_Response {
+        // Security verification (CSRF protection)
+        $security_error = $this->verify_request_security($request, 'payment_confirm');
+        if ($security_error !== null) {
+            return $security_error;
+        }
+
         // Rate limiting: 10 payment attempts per minute
         $rate_limit = Peanut_Festival_Rate_Limiter::enforce('payment');
         if ($rate_limit !== null) {

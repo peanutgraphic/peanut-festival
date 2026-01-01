@@ -16,7 +16,7 @@ class Peanut_Festival_Migrations {
     /**
      * Current database schema version
      */
-    private const CURRENT_VERSION = '1.4.0';
+    private const CURRENT_VERSION = '1.5.0';
 
     /**
      * Option name for storing DB version
@@ -137,6 +137,10 @@ class Peanut_Festival_Migrations {
             '1.4.0' => [
                 'name' => 'Add double elimination bracket support',
                 'callback' => [self::class, 'migration_1_4_0'],
+            ],
+            '1.5.0' => [
+                'name' => 'Add device fingerprint for vote fraud detection',
+                'callback' => [self::class, 'migration_1_5_0'],
             ],
         ];
     }
@@ -511,6 +515,46 @@ class Peanut_Festival_Migrations {
         if (!in_array('loser_id', $columns)) {
             $wpdb->query("ALTER TABLE $matches_table ADD COLUMN loser_id bigint(20) unsigned DEFAULT NULL AFTER winner_id");
             $wpdb->query("ALTER TABLE $matches_table ADD INDEX loser_id (loser_id)");
+        }
+
+        return true;
+    }
+
+    /**
+     * Migration 1.5.0: Add device fingerprint column for vote fraud detection
+     *
+     * Adds fingerprint_hash column to votes table for enhanced fraud detection.
+     * This allows detecting same device voting from different IPs (VPN/proxy abuse).
+     */
+    private static function migration_1_5_0(): bool {
+        global $wpdb;
+
+        $votes_table = $wpdb->prefix . 'pf_votes';
+
+        // Check if table exists first
+        $table_exists = $wpdb->get_var($wpdb->prepare(
+            "SHOW TABLES LIKE %s",
+            $votes_table
+        ));
+
+        if (!$table_exists) {
+            // Table doesn't exist yet - skip migration
+            // Will be created with column in initial schema
+            return true;
+        }
+
+        $columns = $wpdb->get_col("SHOW COLUMNS FROM $votes_table");
+
+        // Add fingerprint_hash column for device fingerprinting
+        if (!in_array('fingerprint_hash', $columns)) {
+            $wpdb->query("ALTER TABLE $votes_table ADD COLUMN fingerprint_hash varchar(64) DEFAULT NULL AFTER ua_hash");
+            $wpdb->query("ALTER TABLE $votes_table ADD INDEX fingerprint_hash (fingerprint_hash)");
+        }
+
+        // Add composite index for fraud detection queries
+        $indexes = $wpdb->get_results("SHOW INDEX FROM $votes_table WHERE Key_name = 'fraud_detection'");
+        if (empty($indexes)) {
+            $wpdb->query("ALTER TABLE $votes_table ADD INDEX fraud_detection (show_slug, ip_hash, fingerprint_hash)");
         }
 
         return true;
