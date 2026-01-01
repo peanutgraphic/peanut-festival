@@ -178,6 +178,7 @@ class Peanut_Festival_Activator {
             voted_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY show_group (show_slug, group_name),
+            KEY show_performer (show_slug, performer_id),
             KEY ip_hash (ip_hash),
             KEY token (token)
         ) $charset_collate;";
@@ -436,7 +437,8 @@ class Peanut_Festival_Activator {
             KEY festival_id (festival_id),
             KEY transaction_type (transaction_type),
             KEY category (category),
-            KEY transaction_date (transaction_date)
+            KEY transaction_date (transaction_date),
+            KEY festival_created (festival_id, created_at)
         ) $charset_collate;";
         dbDelta($sql_transactions);
 

@@ -16,7 +16,7 @@ class Peanut_Festival_Migrations {
     /**
      * Current database schema version
      */
-    private const CURRENT_VERSION = '1.5.0';
+    private const CURRENT_VERSION = '1.6.0';
 
     /**
      * Option name for storing DB version
@@ -141,6 +141,10 @@ class Peanut_Festival_Migrations {
             '1.5.0' => [
                 'name' => 'Add device fingerprint for vote fraud detection',
                 'callback' => [self::class, 'migration_1_5_0'],
+            ],
+            '1.6.0' => [
+                'name' => 'Add performance indexes for votes and transactions',
+                'callback' => [self::class, 'migration_1_6_0'],
             ],
         ];
     }
@@ -555,6 +559,41 @@ class Peanut_Festival_Migrations {
         $indexes = $wpdb->get_results("SHOW INDEX FROM $votes_table WHERE Key_name = 'fraud_detection'");
         if (empty($indexes)) {
             $wpdb->query("ALTER TABLE $votes_table ADD INDEX fraud_detection (show_slug, ip_hash, fingerprint_hash)");
+        }
+
+        return true;
+    }
+
+    /**
+     * Migration 1.6.0: Add performance indexes for votes and transactions
+     *
+     * Adds composite indexes to optimize common query patterns:
+     * - pf_votes: (show_slug, performer_id) for vote results queries
+     * - pf_transactions: (festival_id, created_at) for time-based financial queries
+     */
+    private static function migration_1_6_0(): bool {
+        global $wpdb;
+
+        // Add show_performer index to votes table
+        $votes_table = $wpdb->prefix . 'pf_votes';
+        $votes_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $votes_table));
+
+        if ($votes_exists) {
+            $indexes = $wpdb->get_results("SHOW INDEX FROM $votes_table WHERE Key_name = 'show_performer'");
+            if (empty($indexes)) {
+                $wpdb->query("ALTER TABLE $votes_table ADD INDEX show_performer (show_slug, performer_id)");
+            }
+        }
+
+        // Add festival_created index to transactions table
+        $transactions_table = $wpdb->prefix . 'pf_transactions';
+        $transactions_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $transactions_table));
+
+        if ($transactions_exists) {
+            $indexes = $wpdb->get_results("SHOW INDEX FROM $transactions_table WHERE Key_name = 'festival_created'");
+            if (empty($indexes)) {
+                $wpdb->query("ALTER TABLE $transactions_table ADD INDEX festival_created (festival_id, created_at)");
+            }
         }
 
         return true;
