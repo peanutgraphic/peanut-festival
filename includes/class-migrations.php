@@ -16,7 +16,7 @@ class Peanut_Festival_Migrations {
     /**
      * Current database schema version
      */
-    private const CURRENT_VERSION = '1.3.0';
+    private const CURRENT_VERSION = '1.4.0';
 
     /**
      * Option name for storing DB version
@@ -133,6 +133,10 @@ class Peanut_Festival_Migrations {
             '1.3.0' => [
                 'name' => 'Add Booker integration and competition tables',
                 'callback' => [self::class, 'migration_1_3_0'],
+            ],
+            '1.4.0' => [
+                'name' => 'Add double elimination bracket support',
+                'callback' => [self::class, 'migration_1_4_0'],
             ],
         ];
     }
@@ -473,6 +477,40 @@ class Peanut_Festival_Migrations {
         if (!in_array('booker_link_id', $columns)) {
             $wpdb->query("ALTER TABLE $performers_table ADD COLUMN booker_link_id bigint(20) unsigned DEFAULT NULL AFTER id");
             $wpdb->query("ALTER TABLE $performers_table ADD INDEX booker_link_id (booker_link_id)");
+        }
+
+        return true;
+    }
+
+    /**
+     * Migration 1.4.0: Add double elimination bracket support
+     *
+     * Adds columns needed for full double elimination tournaments:
+     * - bracket_type: winners, losers, grand_finals, grand_finals_reset
+     * - receives_losers_from_round: Which winners bracket round feeds into this losers match
+     * - loser_id: Track the loser of completed matches
+     */
+    private static function migration_1_4_0(): bool {
+        global $wpdb;
+
+        $matches_table = $wpdb->prefix . 'pf_competition_matches';
+        $columns = $wpdb->get_col("SHOW COLUMNS FROM $matches_table");
+
+        // Add bracket_type column
+        if (!in_array('bracket_type', $columns)) {
+            $wpdb->query("ALTER TABLE $matches_table ADD COLUMN bracket_type varchar(30) DEFAULT 'winners' AFTER bracket_position");
+            $wpdb->query("ALTER TABLE $matches_table ADD INDEX bracket_type (bracket_type)");
+        }
+
+        // Add receives_losers_from_round column (for losers bracket matches)
+        if (!in_array('receives_losers_from_round', $columns)) {
+            $wpdb->query("ALTER TABLE $matches_table ADD COLUMN receives_losers_from_round int(11) DEFAULT NULL AFTER bracket_type");
+        }
+
+        // Add loser_id column
+        if (!in_array('loser_id', $columns)) {
+            $wpdb->query("ALTER TABLE $matches_table ADD COLUMN loser_id bigint(20) unsigned DEFAULT NULL AFTER winner_id");
+            $wpdb->query("ALTER TABLE $matches_table ADD INDEX loser_id (loser_id)");
         }
 
         return true;

@@ -495,16 +495,449 @@ class Peanut_Festival_Competitions {
     /**
      * Generate double elimination bracket.
      *
+     * Double elimination consists of:
+     * - Winners bracket (upper): Standard single elimination
+     * - Losers bracket (lower): Second chance for eliminated performers
+     * - Grand finals: Winners bracket winner vs Losers bracket winner
+     * - Grand finals reset: If losers bracket winner wins, a deciding match is played
+     *
+     * Bracket positions use format:
+     * - W_R{round}M{match} for winners bracket
+     * - L_R{round}M{match} for losers bracket
+     * - GF for grand finals, GFR for grand finals reset
+     *
      * @since 1.1.0
+     * @since 1.3.0 Full implementation with losers bracket.
      *
      * @param int   $competition_id Competition ID.
-     * @param array $performer_ids Performer IDs.
+     * @param array $performer_ids Performer IDs in seed order.
      * @return bool Success.
      */
     private static function generate_double_elimination(int $competition_id, array $performer_ids): bool {
-        // For now, implement as single elimination
-        // TODO: Implement full double elimination with losers bracket
-        return self::generate_single_elimination($competition_id, $performer_ids);
+        $count = count($performer_ids);
+
+        // Calculate winners bracket rounds
+        $winners_rounds = (int) ceil(log($count, 2));
+        $bracket_size = pow(2, $winners_rounds);
+        $byes = $bracket_size - $count;
+
+        // Losers bracket has (2 * winners_rounds - 1) rounds
+        // Each winners round feeds into losers, plus losers bracket progression
+        $losers_rounds = 2 * $winners_rounds - 1;
+
+        // Total rounds: winners rounds + losers rounds + grand finals (+ potential reset)
+        $total_rounds = $winners_rounds + $losers_rounds + 2;
+
+        // Seed the winners bracket
+        $seeded = self::seed_bracket($performer_ids, $bracket_size);
+
+        // =========================================================================
+        // Generate Winners Bracket (Upper Bracket)
+        // =========================================================================
+        $match_number = 1;
+        $winners_matches = [];
+
+        // First round of winners bracket
+        for ($i = 0; $i < $bracket_size; $i += 2) {
+            $p1_id = $seeded[$i];
+            $p2_id = $seeded[$i + 1];
+
+            $match_data = [
+                'competition_id' => $competition_id,
+                'round_number' => 1,
+                'match_number' => $match_number,
+                'bracket_position' => "W_R1M{$match_number}",
+                'bracket_type' => 'winners',
+                'performer_1_id' => $p1_id,
+                'performer_2_id' => $p2_id,
+                'performer_1_seed' => $p1_id ? array_search($p1_id, $performer_ids) + 1 : null,
+                'performer_2_seed' => $p2_id ? array_search($p2_id, $performer_ids) + 1 : null,
+                'status' => self::MATCH_PENDING,
+            ];
+
+            // Handle byes
+            if (!$p1_id && $p2_id) {
+                $match_data['winner_id'] = $p2_id;
+                $match_data['loser_id'] = null;
+                $match_data['status'] = self::MATCH_BYE;
+            } elseif ($p1_id && !$p2_id) {
+                $match_data['winner_id'] = $p1_id;
+                $match_data['loser_id'] = null;
+                $match_data['status'] = self::MATCH_BYE;
+            }
+
+            $match_id = self::create_match($match_data);
+            $winners_matches[1][$match_number] = $match_id;
+            $match_number++;
+        }
+
+        // Subsequent winners bracket rounds
+        $matches_in_round = count($winners_matches[1]) / 2;
+        for ($round = 2; $round <= $winners_rounds; $round++) {
+            for ($m = 1; $m <= $matches_in_round; $m++) {
+                $match_id = self::create_match([
+                    'competition_id' => $competition_id,
+                    'round_number' => $round,
+                    'match_number' => $m,
+                    'bracket_position' => "W_R{$round}M{$m}",
+                    'bracket_type' => 'winners',
+                    'status' => self::MATCH_PENDING,
+                ]);
+                $winners_matches[$round][$m] = $match_id;
+            }
+            $matches_in_round = (int) ($matches_in_round / 2);
+        }
+
+        // =========================================================================
+        // Generate Losers Bracket (Lower Bracket)
+        // =========================================================================
+        $losers_matches = [];
+        $losers_round = 1;
+        $winners_round_feeding = 1;
+
+        // Losers bracket round structure:
+        // - Odd losers rounds: Receive losers from winners bracket
+        // - Even losers rounds: Internal progression (no new entrants)
+        // The number of matches varies based on which winners round feeds in
+
+        $matches_from_w1 = $bracket_size / 2; // Matches in winners round 1
+
+        // First losers round: receives losers from winners round 1
+        // These play against each other
+        $l_matches = $matches_from_w1 / 2;
+        for ($m = 1; $m <= $l_matches; $m++) {
+            $match_id = self::create_match([
+                'competition_id' => $competition_id,
+                'round_number' => $winners_rounds + $losers_round,
+                'match_number' => $m,
+                'bracket_position' => "L_R{$losers_round}M{$m}",
+                'bracket_type' => 'losers',
+                'receives_losers_from_round' => 1,
+                'status' => self::MATCH_PENDING,
+            ]);
+            $losers_matches[$losers_round][$m] = $match_id;
+        }
+        $losers_round++;
+
+        // Continue building losers bracket
+        // Pattern: receive from winners, then internal round, repeat
+        for ($w_round = 2; $w_round <= $winners_rounds; $w_round++) {
+            // Losers round that receives from winners bracket
+            $prev_losers_count = count($losers_matches[$losers_round - 1] ?? []);
+            $incoming_losers = $bracket_size / pow(2, $w_round); // Losers from this winners round
+            $l_matches = max($prev_losers_count, $incoming_losers);
+
+            for ($m = 1; $m <= $l_matches; $m++) {
+                $match_id = self::create_match([
+                    'competition_id' => $competition_id,
+                    'round_number' => $winners_rounds + $losers_round,
+                    'match_number' => $m,
+                    'bracket_position' => "L_R{$losers_round}M{$m}",
+                    'bracket_type' => 'losers',
+                    'receives_losers_from_round' => $w_round,
+                    'status' => self::MATCH_PENDING,
+                ]);
+                $losers_matches[$losers_round][$m] = $match_id;
+            }
+            $losers_round++;
+
+            // Internal progression round (no new entrants from winners)
+            if ($l_matches > 1) {
+                $l_matches = (int) ceil($l_matches / 2);
+                for ($m = 1; $m <= $l_matches; $m++) {
+                    $match_id = self::create_match([
+                        'competition_id' => $competition_id,
+                        'round_number' => $winners_rounds + $losers_round,
+                        'match_number' => $m,
+                        'bracket_position' => "L_R{$losers_round}M{$m}",
+                        'bracket_type' => 'losers',
+                        'status' => self::MATCH_PENDING,
+                    ]);
+                    $losers_matches[$losers_round][$m] = $match_id;
+                }
+                $losers_round++;
+            }
+        }
+
+        // =========================================================================
+        // Generate Grand Finals
+        // =========================================================================
+        $gf_round = $winners_rounds + $losers_round;
+
+        // Grand Finals: Winners bracket champion vs Losers bracket champion
+        self::create_match([
+            'competition_id' => $competition_id,
+            'round_number' => $gf_round,
+            'match_number' => 1,
+            'bracket_position' => 'GF',
+            'bracket_type' => 'grand_finals',
+            'status' => self::MATCH_PENDING,
+        ]);
+
+        // Grand Finals Reset: Only played if losers bracket winner wins GF
+        self::create_match([
+            'competition_id' => $competition_id,
+            'round_number' => $gf_round + 1,
+            'match_number' => 1,
+            'bracket_position' => 'GFR',
+            'bracket_type' => 'grand_finals_reset',
+            'status' => self::MATCH_PENDING,
+        ]);
+
+        // Store bracket metadata in config
+        $config = [
+            'winners_rounds' => $winners_rounds,
+            'losers_rounds' => $losers_round - 1,
+            'bracket_size' => $bracket_size,
+            'has_grand_finals_reset' => true,
+        ];
+
+        self::update($competition_id, [
+            'rounds_count' => $gf_round + 1,
+            'current_round' => 1,
+            'status' => self::STATUS_ACTIVE,
+            'config' => $config,
+        ]);
+
+        // Advance bye winners in winners bracket
+        self::advance_double_elim_bye_winners($competition_id);
+
+        return true;
+    }
+
+    /**
+     * Advance bye winners in double elimination.
+     *
+     * @since 1.3.0
+     *
+     * @param int $competition_id Competition ID.
+     */
+    private static function advance_double_elim_bye_winners(int $competition_id): void {
+        $bye_matches = self::get_matches($competition_id, ['status' => self::MATCH_BYE]);
+
+        foreach ($bye_matches as $match) {
+            if ($match->winner_id && $match->bracket_type === 'winners') {
+                self::advance_double_elim_winner($match, $match->winner_id, null);
+            }
+        }
+    }
+
+    /**
+     * Advance winner in double elimination bracket.
+     *
+     * @since 1.3.0
+     *
+     * @param object   $match Current match.
+     * @param int      $winner_id Winner performer ID.
+     * @param int|null $loser_id Loser performer ID (null for byes).
+     */
+    private static function advance_double_elim_winner(object $match, int $winner_id, ?int $loser_id): void {
+        $competition = self::get_by_id($match->competition_id);
+        if (!$competition) {
+            return;
+        }
+
+        $config = $competition->config ?? [];
+        $winners_rounds = $config['winners_rounds'] ?? 0;
+
+        // Handle based on bracket type
+        switch ($match->bracket_type) {
+            case 'winners':
+                // Advance winner to next winners bracket round
+                self::advance_to_winners_round($match, $winner_id, $winners_rounds);
+
+                // Send loser to losers bracket (if not a bye)
+                if ($loser_id) {
+                    self::send_to_losers_bracket($match, $loser_id, $winners_rounds);
+                }
+                break;
+
+            case 'losers':
+                // Advance winner to next losers bracket round or grand finals
+                self::advance_in_losers_bracket($match, $winner_id, $winners_rounds);
+                break;
+
+            case 'grand_finals':
+                // Check if reset is needed
+                self::handle_grand_finals_result($match, $winner_id, $loser_id);
+                break;
+
+            case 'grand_finals_reset':
+                // This is the final match - declare champion
+                self::declare_champion($match->competition_id, $winner_id);
+                break;
+        }
+    }
+
+    /**
+     * Advance winner to next winners bracket round.
+     *
+     * @since 1.3.0
+     */
+    private static function advance_to_winners_round(object $match, int $winner_id, int $winners_rounds): void {
+        $next_round = $match->round_number + 1;
+
+        if ($next_round > $winners_rounds) {
+            // Winner advances to grand finals
+            $gf_match = self::get_match_by_position($match->competition_id, 'GF');
+            if ($gf_match) {
+                self::update_match($gf_match->id, ['performer_1_id' => $winner_id]);
+            }
+            return;
+        }
+
+        $next_match_number = (int) ceil($match->match_number / 2);
+        $is_top = ($match->match_number % 2) === 1;
+
+        $next_match = self::get_match_by_position(
+            $match->competition_id,
+            "W_R{$next_round}M{$next_match_number}"
+        );
+
+        if ($next_match) {
+            $update_data = $is_top
+                ? ['performer_1_id' => $winner_id]
+                : ['performer_2_id' => $winner_id];
+            self::update_match($next_match->id, $update_data);
+        }
+    }
+
+    /**
+     * Send loser to losers bracket.
+     *
+     * @since 1.3.0
+     */
+    private static function send_to_losers_bracket(object $match, int $loser_id, int $winners_rounds): void {
+        // Determine which losers bracket round receives this loser
+        // Winners R1 losers go to L_R1
+        // Winners R2 losers go to L_R2 (paired with L_R1 winners)
+        // And so on...
+
+        $w_round = $match->round_number;
+
+        // Find the losers bracket match that receives from this winners round
+        global $wpdb;
+        $table = Peanut_Festival_Database::get_table_name('competition_matches');
+
+        $losers_match = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table
+             WHERE competition_id = %d
+             AND bracket_type = 'losers'
+             AND receives_losers_from_round = %d
+             AND (performer_1_id IS NULL OR performer_2_id IS NULL)
+             ORDER BY match_number ASC
+             LIMIT 1",
+            $match->competition_id,
+            $w_round
+        ));
+
+        if ($losers_match) {
+            $update_data = $losers_match->performer_1_id === null
+                ? ['performer_1_id' => $loser_id]
+                : ['performer_2_id' => $loser_id];
+            self::update_match($losers_match->id, $update_data);
+        }
+    }
+
+    /**
+     * Advance winner in losers bracket.
+     *
+     * @since 1.3.0
+     */
+    private static function advance_in_losers_bracket(object $match, int $winner_id, int $winners_rounds): void {
+        // Parse current losers round from bracket_position (L_R{n}M{m})
+        preg_match('/L_R(\d+)M(\d+)/', $match->bracket_position, $matches);
+        $current_l_round = (int) ($matches[1] ?? 0);
+
+        // Find next losers bracket match
+        $next_l_round = $current_l_round + 1;
+        $next_match_number = (int) ceil($match->match_number / 2);
+
+        $next_match = self::get_match_by_position(
+            $match->competition_id,
+            "L_R{$next_l_round}M{$next_match_number}"
+        );
+
+        if ($next_match) {
+            $is_top = ($match->match_number % 2) === 1;
+            $update_data = $is_top
+                ? ['performer_1_id' => $winner_id]
+                : ['performer_2_id' => $winner_id];
+            self::update_match($next_match->id, $update_data);
+        } else {
+            // No more losers rounds - winner goes to grand finals
+            $gf_match = self::get_match_by_position($match->competition_id, 'GF');
+            if ($gf_match) {
+                self::update_match($gf_match->id, ['performer_2_id' => $winner_id]);
+            }
+        }
+    }
+
+    /**
+     * Handle grand finals result.
+     *
+     * @since 1.3.0
+     */
+    private static function handle_grand_finals_result(object $match, int $winner_id, ?int $loser_id): void {
+        // performer_1 is from winners bracket (hasn't lost yet)
+        // performer_2 is from losers bracket (has one loss)
+
+        if ($winner_id === $match->performer_1_id) {
+            // Winners bracket champion wins - they are the champion
+            self::declare_champion($match->competition_id, $winner_id);
+
+            // Mark reset match as not needed
+            $reset_match = self::get_match_by_position($match->competition_id, 'GFR');
+            if ($reset_match) {
+                self::update_match($reset_match->id, ['status' => self::MATCH_BYE]);
+            }
+        } else {
+            // Losers bracket champion wins - need reset match
+            // Now both have one loss each
+            $reset_match = self::get_match_by_position($match->competition_id, 'GFR');
+            if ($reset_match) {
+                self::update_match($reset_match->id, [
+                    'performer_1_id' => $match->performer_1_id, // Original winners bracket champ
+                    'performer_2_id' => $winner_id, // Losers bracket champ who won GF
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Declare competition champion.
+     *
+     * @since 1.3.0
+     */
+    private static function declare_champion(int $competition_id, int $winner_id): void {
+        self::update($competition_id, [
+            'winner_performer_id' => $winner_id,
+            'status' => self::STATUS_COMPLETED,
+            'completed_at' => current_time('mysql'),
+        ]);
+
+        /** This action is documented in class-competitions.php */
+        do_action('peanut_festival_competition_completed', $competition_id, $winner_id);
+    }
+
+    /**
+     * Get match by bracket position.
+     *
+     * @since 1.3.0
+     *
+     * @param int    $competition_id Competition ID.
+     * @param string $position Bracket position (e.g., "W_R2M1", "L_R1M3", "GF").
+     * @return object|null Match object or null.
+     */
+    private static function get_match_by_position(int $competition_id, string $position): ?object {
+        global $wpdb;
+        $table = Peanut_Festival_Database::get_table_name('competition_matches');
+
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table WHERE competition_id = %d AND bracket_position = %s",
+            $competition_id,
+            $position
+        ));
     }
 
     /**
@@ -747,6 +1180,7 @@ class Peanut_Festival_Competitions {
      * Complete a match and determine winner.
      *
      * @since 1.1.0
+     * @since 1.4.0 Added double elimination support with loser tracking.
      *
      * @param int      $match_id Match ID.
      * @param int|null $winner_id Optional winner ID (if not using votes).
@@ -771,14 +1205,23 @@ class Peanut_Festival_Competitions {
             }
         }
 
+        // Determine loser (for double elimination)
+        $loser_id = ($winner_id == $match->performer_1_id)
+            ? $match->performer_2_id
+            : $match->performer_1_id;
+
         self::update_match($match_id, [
             'winner_id' => $winner_id,
+            'loser_id' => $loser_id,
             'status' => self::MATCH_COMPLETED,
             'completed_at' => current_time('mysql'),
         ]);
 
-        // Advance winner to next round
-        self::advance_winner($match_id, $winner_id);
+        // Refresh match to get updated data
+        $match = self::get_match($match_id);
+
+        // Advance winner to next round (handles both single and double elimination)
+        self::advance_winner($match_id, $winner_id, $loser_id);
 
         // Fire hook for Booker integration
         Peanut_Festival_Booker_Integration::fire_vote_winner(
@@ -793,22 +1236,55 @@ class Peanut_Festival_Competitions {
     /**
      * Advance winner to next round.
      *
-     * @since 1.1.0
+     * Routes to appropriate advancement logic based on competition type.
      *
-     * @param int $match_id Completed match ID.
-     * @param int $winner_id Winner performer ID.
+     * @since 1.1.0
+     * @since 1.4.0 Added double elimination support.
+     *
+     * @param int      $match_id Completed match ID.
+     * @param int      $winner_id Winner performer ID.
+     * @param int|null $loser_id Loser performer ID (for double elimination).
      */
-    private static function advance_winner(int $match_id, int $winner_id): void {
+    private static function advance_winner(int $match_id, int $winner_id, ?int $loser_id = null): void {
         $match = self::get_match($match_id);
         if (!$match) {
             return;
         }
 
         $competition = self::get_by_id($match->competition_id);
-        if (!$competition || $competition->competition_type === self::TYPE_ROUND_ROBIN) {
-            return; // Round robin doesn't advance
+        if (!$competition) {
+            return;
         }
 
+        // Route based on competition type
+        switch ($competition->competition_type) {
+            case self::TYPE_ROUND_ROBIN:
+                // Round robin doesn't advance
+                return;
+
+            case self::TYPE_DOUBLE_ELIMINATION:
+                // Use double elimination advancement logic
+                self::advance_double_elim_winner($match, $winner_id, $loser_id);
+                return;
+
+            case self::TYPE_SINGLE_ELIMINATION:
+            default:
+                // Use single elimination advancement logic
+                self::advance_single_elim_winner($match, $winner_id, $competition);
+                return;
+        }
+    }
+
+    /**
+     * Advance winner in single elimination bracket.
+     *
+     * @since 1.4.0
+     *
+     * @param object $match Current match.
+     * @param int    $winner_id Winner performer ID.
+     * @param object $competition Competition object.
+     */
+    private static function advance_single_elim_winner(object $match, int $winner_id, object $competition): void {
         // Find next round match
         $next_round = $match->round_number + 1;
         $next_match_number = (int) ceil($match->match_number / 2);
@@ -828,14 +1304,7 @@ class Peanut_Festival_Competitions {
                     'completed_at' => current_time('mysql'),
                 ]);
 
-                /**
-                 * Fires when a competition is completed.
-                 *
-                 * @since 1.1.0
-                 *
-                 * @param int $competition_id Competition ID.
-                 * @param int $winner_id Winner performer ID.
-                 */
+                /** This action is documented in class-competitions.php */
                 do_action('peanut_festival_competition_completed', $competition->id, $winner_id);
             }
             return;
@@ -951,47 +1420,137 @@ class Peanut_Festival_Competitions {
         }
 
         $matches = self::get_matches($competition_id);
+        $is_double_elim = $competition->competition_type === self::TYPE_DOUBLE_ELIMINATION;
 
-        // Group by round
+        // For double elimination, group by bracket type then round
+        if ($is_double_elim) {
+            return self::get_double_elim_bracket($competition, $matches);
+        }
+
+        // Standard grouping by round for single elimination and round robin
         $rounds = [];
         foreach ($matches as $match) {
             $round = $match->round_number;
             if (!isset($rounds[$round])) {
                 $rounds[$round] = [];
             }
-            $rounds[$round][] = [
-                'id' => $match->id,
-                'match_number' => $match->match_number,
-                'performer_1' => [
-                    'id' => $match->performer_1_id,
-                    'name' => $match->performer_1_name ?? 'TBD',
-                    'seed' => $match->performer_1_seed,
-                    'votes' => $match->votes_performer_1,
-                ],
-                'performer_2' => [
-                    'id' => $match->performer_2_id,
-                    'name' => $match->performer_2_name ?? 'TBD',
-                    'seed' => $match->performer_2_seed,
-                    'votes' => $match->votes_performer_2,
-                ],
-                'winner_id' => $match->winner_id,
-                'status' => $match->status,
-                'scheduled_time' => $match->scheduled_time,
-                'voting_closes_at' => $match->voting_closes_at,
-            ];
+            $rounds[$round][] = self::format_match_for_bracket($match);
         }
 
         return [
-            'competition' => [
-                'id' => $competition->id,
-                'name' => $competition->name,
-                'type' => $competition->competition_type,
-                'status' => $competition->status,
-                'rounds_count' => $competition->rounds_count,
-                'current_round' => $competition->current_round,
-                'winner_id' => $competition->winner_performer_id,
-            ],
+            'competition' => self::format_competition_for_bracket($competition),
             'rounds' => $rounds,
+        ];
+    }
+
+    /**
+     * Get double elimination bracket structure.
+     *
+     * @since 1.4.0
+     *
+     * @param object $competition Competition object.
+     * @param array  $matches All matches.
+     * @return array Bracket structure.
+     */
+    private static function get_double_elim_bracket(object $competition, array $matches): array {
+        $winners_bracket = [];
+        $losers_bracket = [];
+        $grand_finals = null;
+        $grand_finals_reset = null;
+
+        foreach ($matches as $match) {
+            $formatted = self::format_match_for_bracket($match);
+
+            switch ($match->bracket_type ?? 'winners') {
+                case 'winners':
+                    $round = $match->round_number;
+                    if (!isset($winners_bracket[$round])) {
+                        $winners_bracket[$round] = [];
+                    }
+                    $winners_bracket[$round][] = $formatted;
+                    break;
+
+                case 'losers':
+                    // Extract losers round from bracket_position (L_R{n}M{m})
+                    preg_match('/L_R(\d+)/', $match->bracket_position ?? '', $m);
+                    $l_round = (int) ($m[1] ?? 0);
+                    if (!isset($losers_bracket[$l_round])) {
+                        $losers_bracket[$l_round] = [];
+                    }
+                    $losers_bracket[$l_round][] = $formatted;
+                    break;
+
+                case 'grand_finals':
+                    $grand_finals = $formatted;
+                    break;
+
+                case 'grand_finals_reset':
+                    $grand_finals_reset = $formatted;
+                    break;
+            }
+        }
+
+        return [
+            'competition' => self::format_competition_for_bracket($competition),
+            'winners_bracket' => $winners_bracket,
+            'losers_bracket' => $losers_bracket,
+            'grand_finals' => $grand_finals,
+            'grand_finals_reset' => $grand_finals_reset,
+        ];
+    }
+
+    /**
+     * Format match data for bracket response.
+     *
+     * @since 1.4.0
+     *
+     * @param object $match Match object.
+     * @return array Formatted match data.
+     */
+    private static function format_match_for_bracket(object $match): array {
+        return [
+            'id' => $match->id,
+            'match_number' => $match->match_number,
+            'bracket_position' => $match->bracket_position ?? null,
+            'bracket_type' => $match->bracket_type ?? 'winners',
+            'performer_1' => [
+                'id' => $match->performer_1_id,
+                'name' => $match->performer_1_name ?? 'TBD',
+                'seed' => $match->performer_1_seed,
+                'votes' => $match->votes_performer_1,
+            ],
+            'performer_2' => [
+                'id' => $match->performer_2_id,
+                'name' => $match->performer_2_name ?? 'TBD',
+                'seed' => $match->performer_2_seed,
+                'votes' => $match->votes_performer_2,
+            ],
+            'winner_id' => $match->winner_id,
+            'loser_id' => $match->loser_id ?? null,
+            'status' => $match->status,
+            'scheduled_time' => $match->scheduled_time,
+            'voting_closes_at' => $match->voting_closes_at,
+        ];
+    }
+
+    /**
+     * Format competition data for bracket response.
+     *
+     * @since 1.4.0
+     *
+     * @param object $competition Competition object.
+     * @return array Formatted competition data.
+     */
+    private static function format_competition_for_bracket(object $competition): array {
+        return [
+            'id' => $competition->id,
+            'name' => $competition->name,
+            'type' => $competition->competition_type,
+            'status' => $competition->status,
+            'rounds_count' => $competition->rounds_count,
+            'current_round' => $competition->current_round,
+            'winner_id' => $competition->winner_performer_id,
+            'config' => $competition->config ?? [],
         ];
     }
 

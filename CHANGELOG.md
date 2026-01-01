@@ -5,6 +5,44 @@ All notable changes to the Peanut Festival plugin will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-01-01
+
+### Added
+
+#### Full Double Elimination Tournament Brackets
+- Complete double elimination bracket generation with winners and losers brackets
+- Grand finals with automatic reset if losers bracket winner beats winners bracket winner
+- Proper loser advancement from winners bracket to losers bracket
+- Bracket positions using format: W_R{round}M{match}, L_R{round}M{match}, GF, GFR
+- New `bracket_type` field: winners, losers, grand_finals, grand_finals_reset
+- Tracks losers with `loser_id` field for proper bracket flow
+- Database migration 1.4.0 for new schema columns
+
+#### Environment Variable Support for Credentials
+- Sensitive settings now check environment variables first
+- Supported env vars: Firebase, Stripe, Eventbrite, Mailchimp, Booker credentials
+- Added `.env.example` template with all supported variables
+- Base64 encoding support for Firebase service account JSON
+
+#### CI/CD Pipeline
+- Added GitHub Actions workflow for automated testing
+- PHP linting and PHPUnit tests
+- Frontend TypeScript checking, linting, and Vitest tests
+- Automatic build artifact upload
+
+### Changed
+- `get_bracket()` API returns separate `winners_bracket`, `losers_bracket`, `grand_finals`, `grand_finals_reset` for double elimination
+- `complete_match()` now determines and stores loser_id for bracket advancement
+- `advance_winner()` routes to competition-type-specific advancement logic
+- `Peanut_Festival_Settings::get()` checks environment variables for sensitive keys
+
+### Security
+- Firebase security rules now role-based (admin, service_account claims required for writes)
+- User votes restricted to own user ID in Firebase
+- Leaderboard writes restricted to service account only
+- Added rate limiting to Firebase subscribe endpoint
+- Fixed unescaped output in volunteer signup and leaderboard templates
+
 ## [1.2.10] - 2024-12-30
 
 ### Fixed

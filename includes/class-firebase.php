@@ -672,6 +672,15 @@ class Peanut_Festival_Firebase {
      * @return WP_REST_Response
      */
     public static function api_subscribe(WP_REST_Request $request): WP_REST_Response {
+        // Rate limiting to prevent abuse
+        $rate_check = Peanut_Festival_Rate_Limiter::enforce('general');
+        if (is_wp_error($rate_check)) {
+            return new WP_REST_Response([
+                'success' => false,
+                'message' => $rate_check->get_error_message(),
+            ], 429);
+        }
+
         $token = sanitize_text_field($request->get_param('token'));
         $festival_id = (int) $request->get_param('festival_id');
 

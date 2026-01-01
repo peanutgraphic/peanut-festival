@@ -168,7 +168,7 @@ class Peanut_Festival_Notifications {
     }
 
     public static function notify_new_application(string $type, int $id): bool {
-        $admin_email = Peanut_Festival_Settings::get_option('notification_email');
+        $admin_email = Peanut_Festival_Settings::get('notification_email');
         if (!$admin_email) {
             $admin_email = get_option('admin_email');
         }
