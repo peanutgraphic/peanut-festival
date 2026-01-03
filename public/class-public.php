@@ -190,7 +190,7 @@ class Peanut_Festival_Public {
                         foreach ($results as $row):
                         ?>
                         <tr>
-                            <td><?php echo $rank++; ?></td>
+                            <td><?php echo esc_html($rank++); ?></td>
                             <td><?php echo esc_html($row->performer_name); ?></td>
                             <td><?php echo esc_html($row->weighted_score); ?></td>
                         </tr>

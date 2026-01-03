@@ -11,6 +11,15 @@ class Peanut_Festival_REST_API_Admin {
 
     private const NAMESPACE = 'peanut-festival/v1/admin';
 
+    /**
+     * Valid date format periods for SQL queries (whitelist to prevent SQL injection)
+     */
+    private const VALID_PERIODS = [
+        'daily' => '%Y-%m-%d',
+        'weekly' => '%Y-%u',
+        'monthly' => '%Y-%m',
+    ];
+
     public function register_routes(): void {
         // Dashboard
         register_rest_route(self::NAMESPACE, '/dashboard/stats', [
@@ -1111,10 +1120,19 @@ class Peanut_Festival_REST_API_Admin {
             return new \WP_REST_Response(['success' => false, 'message' => 'No festival selected'], 400);
         }
 
+        // SECURITY: Validate period against whitelist to prevent SQL injection
+        if (!isset(self::VALID_PERIODS[$period])) {
+            return new \WP_REST_Response([
+                'success' => false,
+                'message' => 'Invalid period. Must be one of: ' . implode(', ', array_keys(self::VALID_PERIODS)),
+            ], 400);
+        }
+
         $tickets_table = Peanut_Festival_Database::get_table_name('tickets');
         $shows_table = Peanut_Festival_Database::get_table_name('shows');
 
-        $date_format = $period === 'daily' ? '%Y-%m-%d' : ($period === 'weekly' ? '%Y-%u' : '%Y-%m');
+        // Use whitelisted date format (safe from SQL injection)
+        $date_format = self::VALID_PERIODS[$period];
 
         // Sales over time
         $sales_over_time = $wpdb->get_results($wpdb->prepare(
@@ -1360,29 +1378,137 @@ class Peanut_Festival_REST_API_Admin {
 
         // Handle credentials JSON upload (base64 encoded)
         if (!empty($data['credentials_json'])) {
-            $credentials_json = base64_decode($data['credentials_json']);
-            $decoded = json_decode($credentials_json, true);
+            $credentials_json = base64_decode($data['credentials_json'], true);
 
-            if (!$decoded || empty($decoded['project_id'])) {
+            // Validate base64 decoding succeeded
+            if ($credentials_json === false) {
+                Peanut_Festival_Logger::warning('Invalid base64 in Firebase credentials upload');
                 return new \WP_REST_Response([
                     'success' => false,
-                    'message' => 'Invalid Firebase credentials JSON',
+                    'message' => 'Invalid credentials format (base64 decoding failed)',
+                ], 400);
+            }
+
+            $decoded = json_decode($credentials_json, true);
+
+            // Validate JSON structure
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Peanut_Festival_Logger::warning('Invalid JSON in Firebase credentials upload', [
+                    'json_error' => json_last_error_msg(),
+                ]);
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Invalid JSON format in credentials',
+                ], 400);
+            }
+
+            // SECURITY: Validate required Firebase service account fields
+            $required_fields = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email'];
+            $missing_fields = [];
+            foreach ($required_fields as $field) {
+                if (empty($decoded[$field])) {
+                    $missing_fields[] = $field;
+                }
+            }
+
+            if (!empty($missing_fields)) {
+                Peanut_Festival_Logger::warning('Incomplete Firebase credentials', [
+                    'missing_fields' => $missing_fields,
+                ]);
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Invalid Firebase service account credentials. Missing required fields: ' . implode(', ', $missing_fields),
+                ], 400);
+            }
+
+            // Validate type is service_account
+            if ($decoded['type'] !== 'service_account') {
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Invalid credentials type. Expected "service_account", got "' . sanitize_text_field($decoded['type']) . '"',
+                ], 400);
+            }
+
+            // Validate private_key format (should start with -----BEGIN PRIVATE KEY-----)
+            if (strpos($decoded['private_key'], '-----BEGIN PRIVATE KEY-----') !== 0) {
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Invalid private key format in credentials',
+                ], 400);
+            }
+
+            // Validate client_email format
+            if (!filter_var($decoded['client_email'], FILTER_VALIDATE_EMAIL)) {
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Invalid client_email format in credentials',
                 ], 400);
             }
 
             // Save credentials file
             $upload_dir = wp_upload_dir();
+
+            // Ensure upload directory is valid
+            if (!empty($upload_dir['error'])) {
+                Peanut_Festival_Logger::error('Upload directory error', [
+                    'error' => $upload_dir['error'],
+                ]);
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Server configuration error: Unable to access upload directory',
+                ], 500);
+            }
+
             $credentials_dir = $upload_dir['basedir'] . '/peanut-festival/';
 
+            // Create directory if it doesn't exist
             if (!file_exists($credentials_dir)) {
-                wp_mkdir_p($credentials_dir);
-                // Add .htaccess to protect directory
-                file_put_contents($credentials_dir . '.htaccess', 'Deny from all');
+                if (!wp_mkdir_p($credentials_dir)) {
+                    Peanut_Festival_Logger::error('Failed to create credentials directory', [
+                        'path' => $credentials_dir,
+                    ]);
+                    return new \WP_REST_Response([
+                        'success' => false,
+                        'message' => 'Failed to create secure storage directory',
+                    ], 500);
+                }
+
+                // Add .htaccess to protect directory (Apache)
+                $htaccess_result = file_put_contents($credentials_dir . '.htaccess', "Order deny,allow\nDeny from all");
+                if ($htaccess_result === false) {
+                    Peanut_Festival_Logger::warning('Failed to create .htaccess protection', [
+                        'path' => $credentials_dir,
+                    ]);
+                }
+
+                // Add index.php for additional protection
+                file_put_contents($credentials_dir . 'index.php', '<?php // Silence is golden');
             }
 
             $credentials_file = $credentials_dir . 'firebase-credentials.json';
-            file_put_contents($credentials_file, $credentials_json);
-            chmod($credentials_file, 0600);
+
+            // Write credentials file with error handling
+            $write_result = file_put_contents($credentials_file, $credentials_json);
+            if ($write_result === false) {
+                Peanut_Festival_Logger::error('Failed to write Firebase credentials file', [
+                    'path' => $credentials_file,
+                ]);
+                return new \WP_REST_Response([
+                    'success' => false,
+                    'message' => 'Failed to save credentials file',
+                ], 500);
+            }
+
+            // Set restrictive permissions
+            if (!chmod($credentials_file, 0600)) {
+                Peanut_Festival_Logger::warning('Failed to set permissions on credentials file', [
+                    'path' => $credentials_file,
+                ]);
+            }
+
+            Peanut_Festival_Logger::info('Firebase credentials saved successfully', [
+                'project_id' => $decoded['project_id'],
+            ]);
 
             $updates['firebase_credentials_file'] = $credentials_file;
 

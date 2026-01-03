@@ -16,7 +16,7 @@ class Peanut_Festival_Migrations {
     /**
      * Current database schema version
      */
-    private const CURRENT_VERSION = '1.3.0';
+    private const CURRENT_VERSION = '1.6.0';
 
     /**
      * Option name for storing DB version
@@ -133,6 +133,18 @@ class Peanut_Festival_Migrations {
             '1.3.0' => [
                 'name' => 'Add Booker integration and competition tables',
                 'callback' => [self::class, 'migration_1_3_0'],
+            ],
+            '1.4.0' => [
+                'name' => 'Add double elimination bracket support',
+                'callback' => [self::class, 'migration_1_4_0'],
+            ],
+            '1.5.0' => [
+                'name' => 'Add device fingerprint for vote fraud detection',
+                'callback' => [self::class, 'migration_1_5_0'],
+            ],
+            '1.6.0' => [
+                'name' => 'Add performance indexes for votes and transactions',
+                'callback' => [self::class, 'migration_1_6_0'],
             ],
         ];
     }
@@ -473,6 +485,115 @@ class Peanut_Festival_Migrations {
         if (!in_array('booker_link_id', $columns)) {
             $wpdb->query("ALTER TABLE $performers_table ADD COLUMN booker_link_id bigint(20) unsigned DEFAULT NULL AFTER id");
             $wpdb->query("ALTER TABLE $performers_table ADD INDEX booker_link_id (booker_link_id)");
+        }
+
+        return true;
+    }
+
+    /**
+     * Migration 1.4.0: Add double elimination bracket support
+     *
+     * Adds columns needed for full double elimination tournaments:
+     * - bracket_type: winners, losers, grand_finals, grand_finals_reset
+     * - receives_losers_from_round: Which winners bracket round feeds into this losers match
+     * - loser_id: Track the loser of completed matches
+     */
+    private static function migration_1_4_0(): bool {
+        global $wpdb;
+
+        $matches_table = $wpdb->prefix . 'pf_competition_matches';
+        $columns = $wpdb->get_col("SHOW COLUMNS FROM $matches_table");
+
+        // Add bracket_type column
+        if (!in_array('bracket_type', $columns)) {
+            $wpdb->query("ALTER TABLE $matches_table ADD COLUMN bracket_type varchar(30) DEFAULT 'winners' AFTER bracket_position");
+            $wpdb->query("ALTER TABLE $matches_table ADD INDEX bracket_type (bracket_type)");
+        }
+
+        // Add receives_losers_from_round column (for losers bracket matches)
+        if (!in_array('receives_losers_from_round', $columns)) {
+            $wpdb->query("ALTER TABLE $matches_table ADD COLUMN receives_losers_from_round int(11) DEFAULT NULL AFTER bracket_type");
+        }
+
+        // Add loser_id column
+        if (!in_array('loser_id', $columns)) {
+            $wpdb->query("ALTER TABLE $matches_table ADD COLUMN loser_id bigint(20) unsigned DEFAULT NULL AFTER winner_id");
+            $wpdb->query("ALTER TABLE $matches_table ADD INDEX loser_id (loser_id)");
+        }
+
+        return true;
+    }
+
+    /**
+     * Migration 1.5.0: Add device fingerprint column for vote fraud detection
+     *
+     * Adds fingerprint_hash column to votes table for enhanced fraud detection.
+     * This allows detecting same device voting from different IPs (VPN/proxy abuse).
+     */
+    private static function migration_1_5_0(): bool {
+        global $wpdb;
+
+        $votes_table = $wpdb->prefix . 'pf_votes';
+
+        // Check if table exists first
+        $table_exists = $wpdb->get_var($wpdb->prepare(
+            "SHOW TABLES LIKE %s",
+            $votes_table
+        ));
+
+        if (!$table_exists) {
+            // Table doesn't exist yet - skip migration
+            // Will be created with column in initial schema
+            return true;
+        }
+
+        $columns = $wpdb->get_col("SHOW COLUMNS FROM $votes_table");
+
+        // Add fingerprint_hash column for device fingerprinting
+        if (!in_array('fingerprint_hash', $columns)) {
+            $wpdb->query("ALTER TABLE $votes_table ADD COLUMN fingerprint_hash varchar(64) DEFAULT NULL AFTER ua_hash");
+            $wpdb->query("ALTER TABLE $votes_table ADD INDEX fingerprint_hash (fingerprint_hash)");
+        }
+
+        // Add composite index for fraud detection queries
+        $indexes = $wpdb->get_results("SHOW INDEX FROM $votes_table WHERE Key_name = 'fraud_detection'");
+        if (empty($indexes)) {
+            $wpdb->query("ALTER TABLE $votes_table ADD INDEX fraud_detection (show_slug, ip_hash, fingerprint_hash)");
+        }
+
+        return true;
+    }
+
+    /**
+     * Migration 1.6.0: Add performance indexes for votes and transactions
+     *
+     * Adds composite indexes to optimize common query patterns:
+     * - pf_votes: (show_slug, performer_id) for vote results queries
+     * - pf_transactions: (festival_id, created_at) for time-based financial queries
+     */
+    private static function migration_1_6_0(): bool {
+        global $wpdb;
+
+        // Add show_performer index to votes table
+        $votes_table = $wpdb->prefix . 'pf_votes';
+        $votes_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $votes_table));
+
+        if ($votes_exists) {
+            $indexes = $wpdb->get_results("SHOW INDEX FROM $votes_table WHERE Key_name = 'show_performer'");
+            if (empty($indexes)) {
+                $wpdb->query("ALTER TABLE $votes_table ADD INDEX show_performer (show_slug, performer_id)");
+            }
+        }
+
+        // Add festival_created index to transactions table
+        $transactions_table = $wpdb->prefix . 'pf_transactions';
+        $transactions_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $transactions_table));
+
+        if ($transactions_exists) {
+            $indexes = $wpdb->get_results("SHOW INDEX FROM $transactions_table WHERE Key_name = 'festival_created'");
+            if (empty($indexes)) {
+                $wpdb->query("ALTER TABLE $transactions_table ADD INDEX festival_created (festival_id, created_at)");
+            }
         }
 
         return true;

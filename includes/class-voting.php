@@ -148,7 +148,7 @@ class Peanut_Festival_Voting {
     }
 
     public static function record_vote(array $data): int|false {
-        return Peanut_Festival_Database::insert('votes', [
+        $vote_data = [
             'show_slug' => $data['show_slug'],
             'group_name' => $data['group_name'],
             'performer_id' => $data['performer_id'],
@@ -157,7 +157,14 @@ class Peanut_Festival_Voting {
             'ua_hash' => $data['ua_hash'],
             'token' => $data['token'],
             'voted_at' => current_time('mysql'),
-        ]);
+        ];
+
+        // Add fingerprint hash if provided (for fraud detection)
+        if (!empty($data['fingerprint_hash'])) {
+            $vote_data['fingerprint_hash'] = $data['fingerprint_hash'];
+        }
+
+        return Peanut_Festival_Database::insert('votes', $vote_data);
     }
 
     public static function get_results(string $show_slug, string $group_name = ''): array {
@@ -357,6 +364,141 @@ class Peanut_Festival_Voting {
 
     public static function hash_ua(string $ua): string {
         return hash('sha256', $ua . NONCE_SALT);
+    }
+
+    /**
+     * Generate a device fingerprint hash from multiple browser/device attributes
+     * This provides better fraud detection than IP/UA alone
+     *
+     * @param array $fingerprint_data Device fingerprint data from frontend
+     * @return string Hashed fingerprint
+     */
+    public static function generate_device_fingerprint(array $fingerprint_data): string {
+        // Normalize and sort the fingerprint components for consistent hashing
+        $components = [
+            'screen' => ($fingerprint_data['screen_width'] ?? '') . 'x' . ($fingerprint_data['screen_height'] ?? ''),
+            'color_depth' => $fingerprint_data['color_depth'] ?? '',
+            'timezone' => $fingerprint_data['timezone'] ?? '',
+            'language' => $fingerprint_data['language'] ?? '',
+            'platform' => $fingerprint_data['platform'] ?? '',
+            'touch' => $fingerprint_data['touch_support'] ?? '',
+            'webgl' => substr($fingerprint_data['webgl_vendor'] ?? '', 0, 50), // Truncate for consistency
+            'canvas' => $fingerprint_data['canvas_hash'] ?? '',
+        ];
+
+        ksort($components);
+        $fingerprint_string = implode('|', $components);
+
+        return hash('sha256', $fingerprint_string . NONCE_SALT);
+    }
+
+    /**
+     * Detect suspicious voting patterns
+     *
+     * @param string $show_slug Show identifier
+     * @param string $ip_hash Hashed IP address
+     * @param string $fingerprint_hash Device fingerprint hash
+     * @return array Suspicion indicators and confidence score
+     */
+    public static function detect_vote_fraud(string $show_slug, string $ip_hash, string $fingerprint_hash = ''): array {
+        global $wpdb;
+        $table = Peanut_Festival_Database::get_table_name('votes');
+        $suspicion_score = 0;
+        $indicators = [];
+
+        // Check for rapid voting from same IP (more than 3 in 30 seconds)
+        $rapid_votes = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table
+             WHERE show_slug = %s AND ip_hash = %s
+             AND voted_at > DATE_SUB(NOW(), INTERVAL 30 SECOND)",
+            $show_slug, $ip_hash
+        ));
+
+        if ((int) $rapid_votes >= 3) {
+            $suspicion_score += 40;
+            $indicators[] = 'rapid_voting';
+        }
+
+        // Check for multiple different tokens from same IP in short time
+        $unique_tokens = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT token) FROM $table
+             WHERE show_slug = %s AND ip_hash = %s
+             AND voted_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)",
+            $show_slug, $ip_hash
+        ));
+
+        if ((int) $unique_tokens >= 5) {
+            $suspicion_score += 30;
+            $indicators[] = 'multiple_tokens';
+        }
+
+        // Check for same fingerprint across different IPs (if fingerprint provided)
+        if (!empty($fingerprint_hash)) {
+            $different_ips = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(DISTINCT ip_hash) FROM $table
+                 WHERE show_slug = %s AND fingerprint_hash = %s
+                 AND voted_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+                $show_slug, $fingerprint_hash
+            ));
+
+            if ((int) $different_ips >= 3) {
+                $suspicion_score += 50;
+                $indicators[] = 'fingerprint_ip_mismatch';
+            }
+        }
+
+        // Check for sequential voting patterns (votes at exact intervals)
+        $vote_times = $wpdb->get_col($wpdb->prepare(
+            "SELECT UNIX_TIMESTAMP(voted_at) FROM $table
+             WHERE show_slug = %s AND ip_hash = %s
+             ORDER BY voted_at DESC LIMIT 10",
+            $show_slug, $ip_hash
+        ));
+
+        if (count($vote_times) >= 5) {
+            $intervals = [];
+            for ($i = 0; $i < count($vote_times) - 1; $i++) {
+                $intervals[] = abs($vote_times[$i] - $vote_times[$i + 1]);
+            }
+            // Check if intervals are suspiciously consistent (within 2 seconds)
+            $avg_interval = array_sum($intervals) / count($intervals);
+            $variance = 0;
+            foreach ($intervals as $interval) {
+                $variance += pow($interval - $avg_interval, 2);
+            }
+            $std_dev = sqrt($variance / count($intervals));
+
+            if ($std_dev < 2 && $avg_interval < 10) {
+                $suspicion_score += 60;
+                $indicators[] = 'automated_pattern';
+            }
+        }
+
+        return [
+            'is_suspicious' => $suspicion_score >= 50,
+            'score' => min(100, $suspicion_score),
+            'indicators' => $indicators,
+        ];
+    }
+
+    /**
+     * Log suspicious voting activity for review
+     *
+     * @param array $vote_data Vote data
+     * @param array $fraud_result Fraud detection result
+     */
+    public static function log_suspicious_vote(array $vote_data, array $fraud_result): void {
+        if (!$fraud_result['is_suspicious']) {
+            return;
+        }
+
+        Peanut_Festival_Logger::warning('Suspicious voting activity detected', [
+            'show_slug' => $vote_data['show_slug'] ?? '',
+            'group_name' => $vote_data['group_name'] ?? '',
+            'ip_hash' => substr($vote_data['ip_hash'] ?? '', 0, 16) . '...',
+            'suspicion_score' => $fraud_result['score'],
+            'indicators' => $fraud_result['indicators'],
+        ]);
     }
 
     // =========================================

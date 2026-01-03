@@ -21,21 +21,143 @@ class Peanut_Festival_Payments {
         return self::$instance;
     }
 
+    /**
+     * Track if we've shown the env var warning
+     */
+    private static bool $env_warning_shown = false;
+
     private function __construct() {
         self::load_settings();
+        add_action('admin_notices', [__CLASS__, 'maybe_show_env_warning']);
     }
 
+    /**
+     * Load Stripe settings from environment variables first, then fall back to wp_options.
+     *
+     * SECURITY: Environment variables are preferred over database storage for sensitive keys.
+     * Set these in wp-config.php or server environment:
+     * - PEANUT_STRIPE_TEST_SECRET_KEY
+     * - PEANUT_STRIPE_TEST_PUBLISHABLE_KEY
+     * - PEANUT_STRIPE_LIVE_SECRET_KEY
+     * - PEANUT_STRIPE_LIVE_PUBLISHABLE_KEY
+     * - PEANUT_STRIPE_TEST_MODE (set to '1' or 'true' for test mode)
+     */
     private static function load_settings(): void {
-        $settings = Peanut_Festival_Settings::get();
-        self::$test_mode = !empty($settings['stripe_test_mode']);
-
-        if (self::$test_mode) {
-            self::$stripe_secret_key = $settings['stripe_test_secret_key'] ?? '';
-            self::$stripe_publishable_key = $settings['stripe_test_publishable_key'] ?? '';
+        // Check environment for test mode setting
+        $env_test_mode = getenv('PEANUT_STRIPE_TEST_MODE');
+        if ($env_test_mode !== false) {
+            self::$test_mode = in_array(strtolower($env_test_mode), ['1', 'true', 'yes'], true);
         } else {
-            self::$stripe_secret_key = $settings['stripe_live_secret_key'] ?? '';
-            self::$stripe_publishable_key = $settings['stripe_live_publishable_key'] ?? '';
+            $settings = Peanut_Festival_Settings::get();
+            self::$test_mode = !empty($settings['stripe_test_mode']);
         }
+
+        // Load keys from environment first, fall back to database
+        if (self::$test_mode) {
+            self::$stripe_secret_key = self::get_key_from_env_or_settings(
+                'PEANUT_STRIPE_TEST_SECRET_KEY',
+                'stripe_test_secret_key'
+            );
+            self::$stripe_publishable_key = self::get_key_from_env_or_settings(
+                'PEANUT_STRIPE_TEST_PUBLISHABLE_KEY',
+                'stripe_test_publishable_key'
+            );
+        } else {
+            self::$stripe_secret_key = self::get_key_from_env_or_settings(
+                'PEANUT_STRIPE_LIVE_SECRET_KEY',
+                'stripe_live_secret_key'
+            );
+            self::$stripe_publishable_key = self::get_key_from_env_or_settings(
+                'PEANUT_STRIPE_LIVE_PUBLISHABLE_KEY',
+                'stripe_live_publishable_key'
+            );
+        }
+    }
+
+    /**
+     * Get a Stripe key from environment variable first, then fall back to settings.
+     *
+     * @param string $env_key Environment variable name.
+     * @param string $settings_key Settings array key.
+     * @return string The key value.
+     */
+    private static function get_key_from_env_or_settings(string $env_key, string $settings_key): string {
+        // Try environment variable first (more secure)
+        $env_value = getenv($env_key);
+        if ($env_value !== false && !empty($env_value)) {
+            return $env_value;
+        }
+
+        // Also check for constant definition in wp-config.php
+        if (defined($env_key)) {
+            return constant($env_key);
+        }
+
+        // Fall back to database settings (less secure)
+        $settings = Peanut_Festival_Settings::get();
+        return $settings[$settings_key] ?? '';
+    }
+
+    /**
+     * Check if keys are loaded from environment (secure) or database (less secure).
+     *
+     * @return bool True if using environment variables.
+     */
+    public static function is_using_env_keys(): bool {
+        if (self::$test_mode) {
+            $env_key = getenv('PEANUT_STRIPE_TEST_SECRET_KEY');
+            $const_key = defined('PEANUT_STRIPE_TEST_SECRET_KEY');
+        } else {
+            $env_key = getenv('PEANUT_STRIPE_LIVE_SECRET_KEY');
+            $const_key = defined('PEANUT_STRIPE_LIVE_SECRET_KEY');
+        }
+
+        return ($env_key !== false && !empty($env_key)) || $const_key;
+    }
+
+    /**
+     * Show admin warning if Stripe keys are stored in database instead of environment.
+     */
+    public static function maybe_show_env_warning(): void {
+        // Only show on Peanut Festival admin pages
+        $screen = get_current_screen();
+        if (!$screen || strpos($screen->id, 'peanut-festival') === false) {
+            return;
+        }
+
+        // Only show to administrators
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        // Don't show if not configured at all
+        if (!self::is_configured()) {
+            return;
+        }
+
+        // Don't show if already using environment variables
+        if (self::is_using_env_keys()) {
+            return;
+        }
+
+        // Only show once per page load
+        if (self::$env_warning_shown) {
+            return;
+        }
+        self::$env_warning_shown = true;
+
+        echo '<div class="notice notice-warning is-dismissible">';
+        echo '<p><strong>Peanut Festival Security Recommendation:</strong> ';
+        echo 'Stripe API keys are currently stored in the database. ';
+        echo 'For better security, add them to your <code>wp-config.php</code> file:</p>';
+        echo '<pre style="background: #f1f1f1; padding: 10px; overflow-x: auto;">';
+        echo "define('PEANUT_STRIPE_TEST_SECRET_KEY', 'sk_test_...');\n";
+        echo "define('PEANUT_STRIPE_TEST_PUBLISHABLE_KEY', 'pk_test_...');\n";
+        echo "define('PEANUT_STRIPE_LIVE_SECRET_KEY', 'sk_live_...');\n";
+        echo "define('PEANUT_STRIPE_LIVE_PUBLISHABLE_KEY', 'pk_live_...');\n";
+        echo "define('PEANUT_STRIPE_TEST_MODE', true); // or false for live";
+        echo '</pre>';
+        echo '</div>';
     }
 
     public static function get_publishable_key(): string {

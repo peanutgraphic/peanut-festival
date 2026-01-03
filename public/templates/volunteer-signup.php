@@ -157,7 +157,7 @@ foreach ($shifts as $shift) {
                             <span class="pf-shift-location"><?php echo esc_html($shift->location); ?></span>
                             <?php endif; ?>
                             <span class="pf-shift-slots">
-                                <?php echo $available > 0 ? $available . ' spots left' : 'Full'; ?>
+                                <?php echo $available > 0 ? esc_html($available . ' spots left') : 'Full'; ?>
                             </span>
                         </div>
                     </label>

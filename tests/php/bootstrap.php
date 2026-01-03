@@ -356,6 +356,157 @@ if (!function_exists('rest_url')) {
     }
 }
 
+// Mock wp_remote_request
+if (!function_exists('wp_remote_request')) {
+    function wp_remote_request($url, $args = []) {
+        return ['response' => ['code' => 200], 'body' => '{}'];
+    }
+}
+
+// Mock home_url
+if (!function_exists('home_url')) {
+    function home_url($path = '') {
+        return 'http://example.com' . $path;
+    }
+}
+
+// Mock admin_url
+if (!function_exists('admin_url')) {
+    function admin_url($path = '') {
+        return 'http://example.com/wp-admin/' . ltrim($path, '/');
+    }
+}
+
+// Mock get_bloginfo
+if (!function_exists('get_bloginfo')) {
+    function get_bloginfo($show = '') {
+        $info = [
+            'name' => 'Test Site',
+            'description' => 'Just another WordPress site',
+            'url' => 'http://example.com',
+            'admin_email' => 'admin@example.com',
+        ];
+        return $info[$show] ?? '';
+    }
+}
+
+// Mock esc_html
+if (!function_exists('esc_html')) {
+    function esc_html($text) {
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+// Mock esc_url
+if (!function_exists('esc_url')) {
+    function esc_url($url) {
+        return filter_var($url, FILTER_SANITIZE_URL);
+    }
+}
+
+// Mock esc_attr
+if (!function_exists('esc_attr')) {
+    function esc_attr($text) {
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+// Mock sanitize_key
+if (!function_exists('sanitize_key')) {
+    function sanitize_key($key) {
+        $key = strtolower($key);
+        return preg_replace('/[^a-z0-9_\-]/', '', $key);
+    }
+}
+
+// Mock wp_generate_password
+if (!function_exists('wp_generate_password')) {
+    function wp_generate_password($length = 12, $special_chars = true, $extra_special_chars = false) {
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        if ($special_chars) {
+            $chars .= '!@#$%^&*()';
+        }
+        $password = '';
+        for ($i = 0; $i < $length; $i++) {
+            $password .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+        return $password;
+    }
+}
+
+// Mock trailingslashit
+if (!function_exists('trailingslashit')) {
+    function trailingslashit($string) {
+        return rtrim($string, '/\\') . '/';
+    }
+}
+
+// Mock wp_verify_nonce
+if (!function_exists('wp_verify_nonce')) {
+    function wp_verify_nonce($nonce, $action = -1) {
+        // For testing, return true for valid-looking nonces
+        return !empty($nonce);
+    }
+}
+
+// Mock wp_send_json_error
+if (!function_exists('wp_send_json_error')) {
+    function wp_send_json_error($data = null, $status_code = null) {
+        // No-op for testing (normally exits)
+    }
+}
+
+// Mock wp_send_json_success
+if (!function_exists('wp_send_json_success')) {
+    function wp_send_json_success($data = null) {
+        // No-op for testing (normally exits)
+    }
+}
+
+// Mock wp_get_image_editor
+if (!function_exists('wp_get_image_editor')) {
+    function wp_get_image_editor($path, $args = []) {
+        return new WP_Error('no_editor', 'No image editor available');
+    }
+}
+
+// Mock WP_Error class
+if (!class_exists('WP_Error')) {
+    class WP_Error {
+        private $code;
+        private $message;
+        private $data;
+
+        public function __construct($code = '', $message = '', $data = '') {
+            $this->code = $code;
+            $this->message = $message;
+            $this->data = $data;
+        }
+
+        public function get_error_code() {
+            return $this->code;
+        }
+
+        public function get_error_message() {
+            return $this->message;
+        }
+
+        public function get_error_data() {
+            return $this->data;
+        }
+    }
+}
+
+// Mock date_i18n
+if (!function_exists('date_i18n')) {
+    function date_i18n($format, $timestamp = null) {
+        if ($timestamp === null) {
+            $timestamp = time();
+        }
+        return date($format, $timestamp);
+    }
+}
+
 // Mock $wpdb global
 global $wpdb;
 if (!isset($wpdb)) {
@@ -400,6 +551,10 @@ if (!isset($wpdb)) {
 
         public function set_mock_results($results) {
             $this->mock_results = $results;
+        }
+
+        public function esc_like($text) {
+            return addcslashes($text, '_%\\');
         }
     };
 }

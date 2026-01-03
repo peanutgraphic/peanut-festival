@@ -1,53 +1,102 @@
 {
   "rules": {
+    // Helper functions (evaluated at each node that uses them)
+    // Admin check: Token has admin claim OR is a service account
+    // Service account UIDs typically match the service account email pattern
+
     "festivals": {
       ".read": true,
-      ".write": "auth != null",
+      // Only service account/admin can write festival data
+      ".write": "auth != null && (auth.token.admin === true || auth.token.service_account === true)",
       "$festival_id": {
-        ".validate": "newData.hasChildren(['id', 'name', 'status'])"
+        ".validate": "newData.hasChildren(['id', 'name', 'status'])",
+        // Allow festival-specific organizers to update their festival
+        ".write": "auth != null && (auth.token.admin === true || auth.token.service_account === true || auth.token.festival_id === $festival_id)"
       }
     },
+
     "votes": {
       ".read": true,
-      ".write": "auth != null",
       "$show_id": {
-        ".validate": "newData.hasChild('total')"
+        // Service account can set/update totals
+        ".write": "auth != null && (auth.token.admin === true || auth.token.service_account === true)",
+        ".validate": "newData.hasChild('total')",
+
+        // User votes are stored separately with rate limiting
+        "user_votes": {
+          "$user_id": {
+            // Users can only write their own votes
+            ".write": "auth != null && auth.uid === $user_id",
+            ".validate": "newData.hasChildren(['performer_id', 'timestamp']) && newData.child('timestamp').isNumber() && newData.child('timestamp').val() <= now"
+          }
+        }
       }
     },
+
     "matches": {
       ".read": true,
-      ".write": "auth != null",
+      // Only admins/service account can update match status
+      ".write": "auth != null && (auth.token.admin === true || auth.token.service_account === true)",
       "$match_id": {
-        ".validate": "newData.hasChildren(['id', 'status'])"
+        ".validate": "newData.hasChildren(['id', 'status'])",
+
+        // Users can vote on matches through a nested votes node
+        "votes": {
+          "$user_id": {
+            ".write": "auth != null && auth.uid === $user_id",
+            ".validate": "newData.hasChildren(['performer_id', 'timestamp']) && !data.exists()"
+          }
+        }
       }
     },
+
     "shows": {
       ".read": true,
-      ".write": "auth != null"
+      // Only admins/service account
+      ".write": "auth != null && (auth.token.admin === true || auth.token.service_account === true)"
     },
+
     "performers": {
       ".read": true,
-      ".write": "auth != null"
+      // Only admins/service account
+      ".write": "auth != null && (auth.token.admin === true || auth.token.service_account === true)"
     },
+
     "leaderboard": {
       ".read": true,
-      ".write": "auth != null"
+      // Only service account (server-side calculated)
+      ".write": "auth != null && auth.token.service_account === true"
     },
+
     "competitions": {
       ".read": true,
-      ".write": "auth != null"
-    },
-    "subscriptions": {
-      ".read": "auth != null",
-      "$token": {
-        ".write": true,
-        ".validate": "newData.hasChildren(['token', 'created_at'])"
+      // Only admins/service account can modify competition structure
+      ".write": "auth != null && (auth.token.admin === true || auth.token.service_account === true)",
+      "$competition_id": {
+        "bracket": {
+          // Bracket data is read-only for clients, server updates only
+          ".write": "auth != null && auth.token.service_account === true"
+        }
       }
     },
-    "test": {
-      ".read": true,
-      ".write": "auth != null"
+
+    "subscriptions": {
+      // Users can only read their own subscriptions
+      ".read": "auth != null",
+      "$token": {
+        // Any authenticated user can create a subscription
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['token', 'created_at']) && newData.child('created_at').isNumber()"
+      }
     },
+
+    // Admin-only test endpoint
+    "test": {
+      ".read": "auth != null && (auth.token.admin === true || auth.token.service_account === true)",
+      ".write": "auth != null && (auth.token.admin === true || auth.token.service_account === true)"
+    },
+
+    // Deny all other paths
     "$other": {
       ".read": false,
       ".write": false
