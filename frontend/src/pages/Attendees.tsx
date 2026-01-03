@@ -118,7 +118,8 @@ export function Attendees() {
                 placeholder="Search attendees..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                style={{ paddingLeft: '2.5rem' }}
+                className="w-full pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
             </div>
           </div>

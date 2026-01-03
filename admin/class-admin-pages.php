@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin pages class - mounts the React SPA
+ * Admin pages class - mounts the React SPA in fullscreen mode
  */
 
 if (!defined('ABSPATH')) {
@@ -27,13 +27,13 @@ class Peanut_Festival_Admin_Pages {
     }
 
     /**
-     * Render the React app container (within WordPress admin)
+     * Render the React app container in fullscreen mode
      */
     public function render_admin_page(): void {
         ?>
-        <div class="wrap">
-            <div id="peanut-festival-app" style="min-height: 80vh;">
-                <div style="display: flex; align-items: center; justify-content: center; height: 400px; flex-direction: column; color: #64748b;">
+        <div class="peanut-festival-fullscreen-app">
+            <div id="peanut-festival-app">
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; flex-direction: column; color: #64748b;">
                     <div style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #dc2626; border-radius: 50%; animation: pf-spin 0.8s linear infinite;"></div>
                     <p style="margin-top: 16px;">Loading Peanut Festival...</p>
                 </div>
@@ -46,7 +46,7 @@ class Peanut_Festival_Admin_Pages {
     }
 
     /**
-     * Inject CSS for React app within WordPress admin
+     * Inject CSS for fullscreen React app (escapes WordPress admin CSS)
      */
     public function inject_fullscreen_styles(): void {
         if (!isset($_GET['page']) || $_GET['page'] !== 'peanut-festival') {
@@ -55,100 +55,80 @@ class Peanut_Festival_Admin_Pages {
 
         ?>
         <style>
-            /* Hide WordPress notices on our page */
-            .wrap > .notice,
-            .wrap > .updated,
-            .wrap > .error {
+            /* Hide WordPress admin chrome for fullscreen React app */
+            html.wp-toolbar {
+                padding-top: 0 !important;
+            }
+            #wpadminbar {
                 display: none !important;
             }
-
-            /* App container */
-            #peanut-festival-app {
-                width: 100%;
-                box-sizing: border-box;
+            #adminmenumain,
+            #adminmenuback,
+            #adminmenuwrap {
+                display: none !important;
             }
-            #peanut-festival-app * {
-                box-sizing: border-box;
+            #wpcontent,
+            #wpfooter {
+                margin-left: 0 !important;
+            }
+            #wpbody-content {
+                padding-bottom: 0 !important;
+            }
+            .update-nag,
+            .updated,
+            .notice,
+            .error:not(.peanut-error) {
+                display: none !important;
+            }
+            #wpfooter {
+                display: none !important;
+            }
+            /* Fullscreen container */
+            .peanut-festival-fullscreen-app {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 99999;
+                background: #f8fafc;
+                overflow: hidden;
+            }
+            #peanut-festival-app {
+                height: 100%;
+                width: 100%;
+                overflow: auto;
             }
 
             /* ===== CSS ISOLATION FOR TAILWIND ===== */
-            /* Override WordPress's .hidden class */
+            /* Override WordPress's .hidden class that may have !important */
             #peanut-festival-app .hidden {
                 display: none;
             }
-            /* Ensure flex works */
-            #peanut-festival-app .flex {
-                display: flex !important;
-            }
-            #peanut-festival-app .flex-1 {
-                flex: 1 1 0% !important;
-            }
-            #peanut-festival-app .flex-shrink-0 {
-                flex-shrink: 0 !important;
-            }
-            #peanut-festival-app .min-w-0 {
-                min-width: 0 !important;
-            }
-            #peanut-festival-app .w-full {
-                width: 100% !important;
-            }
-            #peanut-festival-app .w-64 {
-                width: 16rem !important;
-            }
-            #peanut-festival-app .w-16 {
-                width: 4rem !important;
-            }
-            /* Grid system */
-            #peanut-festival-app .grid {
-                display: grid !important;
-            }
-            #peanut-festival-app .gap-6 {
-                gap: 1.5rem !important;
-            }
-            /* Responsive grid - md breakpoint (768px) */
+            /* Tailwind responsive utilities - override any WP conflicts */
             @media (min-width: 768px) {
-                #peanut-festival-app .md\:grid-cols-2 {
-                    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-                }
-            }
-            /* Responsive grid - lg breakpoint (1024px) */
-            @media (min-width: 1024px) {
-                #peanut-festival-app .lg\:block {
+                #peanut-festival-app .md\:block {
                     display: block !important;
                 }
-                #peanut-festival-app .lg\:hidden {
+                #peanut-festival-app .md\:hidden {
                     display: none !important;
                 }
-                #peanut-festival-app .lg\:flex {
+                #peanut-festival-app .md\:flex {
                     display: flex !important;
                 }
-                #peanut-festival-app .lg\:relative {
-                    position: relative !important;
+                #peanut-festival-app .md\:ml-56 {
+                    margin-left: 14rem !important;
                 }
-                #peanut-festival-app .lg\:grid-cols-2 {
-                    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-                }
-                #peanut-festival-app .lg\:grid-cols-4 {
-                    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+                #peanut-festival-app .md\:ml-16 {
+                    margin-left: 4rem !important;
                 }
             }
             /* Ensure fixed positioning works inside the app */
             #peanut-festival-app .fixed {
                 position: fixed;
             }
-            /* Overflow utilities */
-            #peanut-festival-app .overflow-hidden {
-                overflow: hidden !important;
-            }
-            #peanut-festival-app .overflow-auto {
-                overflow: auto !important;
-            }
-            #peanut-festival-app .overflow-x-auto {
-                overflow-x: auto !important;
-            }
             /* Ensure sidebar z-index is high enough */
-            #peanut-festival-app aside.fixed,
-            #peanut-festival-app aside {
+            #peanut-festival-app aside.fixed {
                 z-index: 100;
             }
             /* Reset WordPress button styles inside the app */
