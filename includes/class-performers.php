@@ -314,7 +314,7 @@ class Peanut_Festival_Performers {
      * @param int|null $festival_id Optional festival ID to filter by.
      * @return array Associative array of status => count.
      */
-    public static function get_status_counts(int $festival_id = null): array {
+    public static function get_status_counts(?int $festival_id = null): array {
         global $wpdb;
         $table = Peanut_Festival_Database::get_table_name('performers');
 

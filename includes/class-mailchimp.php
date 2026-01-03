@@ -225,7 +225,7 @@ class Peanut_Festival_Mailchimp {
     /**
      * Sync performers to Mailchimp
      */
-    public static function sync_performers(int $festival_id = null): array {
+    public static function sync_performers(?int $festival_id = null): array {
         $performers = Peanut_Festival_Performers::get_all([
             'festival_id' => $festival_id,
             'application_status' => 'accepted',
@@ -266,7 +266,7 @@ class Peanut_Festival_Mailchimp {
     /**
      * Sync volunteers to Mailchimp
      */
-    public static function sync_volunteers(int $festival_id = null): array {
+    public static function sync_volunteers(?int $festival_id = null): array {
         $volunteers = Peanut_Festival_Volunteers::get_all([
             'festival_id' => $festival_id,
             'status' => 'active',
@@ -307,7 +307,7 @@ class Peanut_Festival_Mailchimp {
     /**
      * Sync attendees to Mailchimp
      */
-    public static function sync_attendees(int $festival_id = null): array {
+    public static function sync_attendees(?int $festival_id = null): array {
         $attendees = Peanut_Festival_Attendees::get_all([
             'festival_id' => $festival_id,
         ]);
@@ -347,7 +347,7 @@ class Peanut_Festival_Mailchimp {
     /**
      * Sync all contacts to Mailchimp
      */
-    public static function sync_all(int $festival_id = null): array {
+    public static function sync_all(?int $festival_id = null): array {
         $results = [
             'performers' => self::sync_performers($festival_id),
             'volunteers' => self::sync_volunteers($festival_id),

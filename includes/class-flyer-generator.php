@@ -23,7 +23,7 @@ class Peanut_Festival_Flyer_Generator {
         add_action('wp_ajax_nopriv_pf_flyer_log', [$this, 'ajax_log']);
     }
 
-    public static function get_templates(int $festival_id = null): array {
+    public static function get_templates(?int $festival_id = null): array {
         $where = [];
         if ($festival_id) {
             $where['festival_id'] = $festival_id;
